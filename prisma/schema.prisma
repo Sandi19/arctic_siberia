@@ -1,0 +1,251 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enum untuk peran pengguna
+enum UserRole {
+  ADMIN
+  INSTRUCTOR
+  STUDENT
+}
+
+// Enum untuk status kursus
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// Enum untuk status pembayaran
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+// Enum untuk tingkat kesulitan
+enum DifficultyLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+// Model User - Pengguna sistem
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String
+  avatar    String?
+  role      UserRole @default(STUDENT)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relasi sebagai siswa
+  enrollments     Enrollment[]
+  progress        Progress[]
+  certificates    Certificate[]
+  payments        Payment[]
+  reviews         Review[]
+
+  // Relasi sebagai instruktur
+  instructedCourses Course[] @relation("CourseInstructor")
+
+  @@map("users")
+}
+
+// Model Category - Kategori kursus
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  icon        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  courses Course[]
+
+  @@map("categories")
+}
+
+// Model Course - Kursus
+model Course {
+  id            String          @id @default(cuid())
+  title         String
+  slug          String          @unique
+  description   String
+  shortDesc     String?
+  thumbnail     String?
+  price         Decimal         @default(0)
+  originalPrice Decimal?
+  status        CourseStatus    @default(DRAFT)
+  level         DifficultyLevel @default(BEGINNER)
+  duration      Int? // durasi dalam menit
+  language      String          @default("ru") // russian
+  isPublished   Boolean         @default(false)
+  isFeatured    Boolean         @default(false)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  // Relasi
+  instructorId String
+  instructor   User     @relation("CourseInstructor", fields: [instructorId], references: [id])
+  categoryId   String
+  category     Category @relation(fields: [categoryId], references: [id])
+
+  lessons      Lesson[]
+  enrollments  Enrollment[]
+  payments     Payment[]
+  reviews      Review[]
+  certificates Certificate[]
+
+  @@map("courses")
+}
+
+// Model Lesson - Pelajaran dalam kursus
+model Lesson {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String
+  description String?
+  content     String? // konten teks
+  videoUrl    String? // URL YouTube atau video lain
+  duration    Int? // durasi dalam detik
+  order       Int      @default(0)
+  isPublished Boolean  @default(false)
+  isFree      Boolean  @default(false) // pelajaran gratis untuk preview
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relasi
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  materials Material[]
+  progress  Progress[]
+
+  @@unique([courseId, slug])
+  @@map("lessons")
+}
+
+// Model Material - File/dokumen pelajaran
+model Material {
+  id        String   @id @default(cuid())
+  title     String
+  filename  String
+  fileUrl   String
+  fileSize  Int? // size dalam bytes
+  fileType  String // pdf, docx, mp3, etc
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relasi
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("materials")
+}
+
+// Model Enrollment - Pendaftaran siswa ke kursus
+model Enrollment {
+  id           String    @id @default(cuid())
+  enrolledAt   DateTime  @default(now())
+  completedAt  DateTime?
+  progress     Float     @default(0) // persentase 0-100
+  isCompleted  Boolean   @default(false)
+  certificateIssued Boolean @default(false)
+
+  // Relasi
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+  @@map("enrollments")
+}
+
+// Model Progress - Progress siswa per pelajaran
+model Progress {
+  id          String    @id @default(cuid())
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  watchedDuration Int   @default(0) // durasi yang sudah ditonton (detik)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relasi
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@map("progress")
+}
+
+// Model Payment - Pembayaran
+model Payment {
+  id            String        @id @default(cuid())
+  amount        Decimal
+  currency      String        @default("IDR")
+  status        PaymentStatus @default(PENDING)
+  paymentMethod String? // transfer, credit_card, e-wallet
+  transactionId String? // ID dari payment gateway
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relasi
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id])
+
+  @@map("payments")
+}
+
+// Model Review - Ulasan kursus
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int // 1-5
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relasi
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+  @@map("reviews")
+}
+
+// Model Certificate - Sertifikat kelulusan
+model Certificate {
+  id          String   @id @default(cuid())
+  certificateNumber String @unique
+  issuedAt    DateTime @default(now())
+  
+  // Relasi
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+  @@map("certificates")
+}

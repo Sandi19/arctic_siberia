@@ -1,0 +1,87 @@
+arctic_siberia/
+├── public/
+│   ├── logo.png
+│   ├── sample-pdf/
+│   │   └── contoh.pdf
+│   └── favicon.ico
+│
+├── prisma/
+│   ├── schema.prisma
+│   ├── seed.ts
+│   └── migrations/
+│
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx                 # Root layout (global)
+│   │   ├── page.tsx                   # Landing page (homepage publik)
+│   │   │
+│   │   ├── auth/
+│   │   │   ├── login/page.tsx
+│   │   │   ├── register/page.tsx
+│   │   │   ├── forgot-password/page.tsx
+│   │   │   ├── reset-password/page.tsx
+│   │   │   └── layout.tsx             # Optional: auth form layout
+│   │   │
+│   │   ├── dashboard/
+│   │   │   ├── student/page.tsx       # Dashboard siswa
+│   │   │   └── admin/page.tsx         # Dashboard admin/guru
+│   │   │
+│   │   ├── courses/
+│   │   │   ├── page.tsx               # Daftar kelas
+│   │   │   └── [id]/page.tsx          # Detail kelas (video, file)
+│   │   │
+│   │   ├── payments/
+│   │   │   └── page.tsx               # Halaman pembayaran
+│
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── navbar.tsx
+│   │   │   ├── footer.tsx
+│   │   │   ├── sidebar.tsx
+│   │   │   ├── dashboard-layout.tsx
+│   │   │   └── auth-layout.tsx
+│   │   │
+│   │   ├── ui/
+│   │   │   ├── button.tsx
+│   │   │   ├── input.tsx
+│   │   │   ├── card.tsx
+│   │   │   ├── modal.tsx
+│   │   │   ├── badge.tsx
+│   │   │   └── index.ts               # Barrel export
+│   │   │
+│   │   ├── forms/
+│   │   │   ├── login-form.tsx
+│   │   │   ├── register-form.tsx
+│   │   │   ├── course-form.tsx
+│   │   │   └── file-upload-form.tsx
+│   │   │
+│   │   └── course/
+│   │       ├── course-card.tsx
+│   │       ├── video-player.tsx
+│   │       └── file-list.tsx
+│   │    
+│   │   ├── home/                     # <--- Tambahan baru
+│   |   │   ├── hero.tsx              # Bagian utama dengan CTA
+│   |   │   ├── cta-section.tsx              # Bagian utama dengan CTA
+|   │   |   ├── about.tsx             # Penjelasan platform
+|   |   │   ├── features.tsx          # Kelebihan LMS kamu
+|   |   │   └── popular-courses.tsx   # Daftar kursus populer│
+│
+│   ├── lib/
+│   │   ├── auth.ts                    # Fungsi otentikasi & role
+│   │   ├── db.ts                      # Prisma client
+│   │   ├── youtube.ts                 # Parsing URL YouTube
+│   │   └── upload.ts                  # Upload handler
+│
+│   ├── styles/
+│   │   └── globals.css
+│
+│   └── pages/                         # (Opsional) Untuk API routes jika dibutuhkan
+│
+├── .env.local
+├── .gitignore
+├── next.config.js
+├── tailwind.config.js
+├── tsconfig.json
+├── package.json
+└── README.md
