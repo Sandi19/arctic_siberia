@@ -1,0 +1,290 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+
+interface RegisterFormData {
+  name: string
+  email: string
+  password: string
+  confirmPassword: string
+}
+
+interface RegisterResponse {
+  success: boolean
+  message: string
+  user?: {
+    id: string
+    name: string
+    email: string
+    role: string
+  }
+}
+
+export default function RegisterForm() {
+  const router = useRouter()
+  const [formData, setFormData] = useState<RegisterFormData>({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  })
+  const [isLoading, setIsLoading] = useState(false)
+  const [errors, setErrors] = useState<Partial<RegisterFormData>>({})
+  const [apiError, setApiError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+
+  // Validasi form
+  const validateForm = (): boolean => {
+    const newErrors: Partial<RegisterFormData> = {}
+
+    // Validasi nama
+    if (!formData.name.trim()) {
+      newErrors.name = 'Nama lengkap wajib diisi'
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = 'Nama minimal 2 karakter'
+    }
+
+    // Validasi email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email wajib diisi'
+    } else if (!emailRegex.test(formData.email)) {
+      newErrors.email = 'Format email tidak valid'
+    }
+
+    // Validasi password
+    if (!formData.password) {
+      newErrors.password = 'Password wajib diisi'
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password minimal 6 karakter'
+    }
+
+    // Validasi konfirmasi password
+    if (!formData.confirmPassword) {
+      newErrors.confirmPassword = 'Konfirmasi password wajib diisi'
+    } else if (formData.password !== formData.confirmPassword) {
+      newErrors.confirmPassword = 'Password tidak cocok'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  // Handle perubahan input
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+
+    // Clear error saat user mulai mengetik
+    if (errors[name as keyof RegisterFormData]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }))
+    }
+    setApiError('')
+  }
+
+  // Handle submit form
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    if (!validateForm()) return
+
+    setIsLoading(true)
+    setApiError('')
+
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name.trim(),
+          email: formData.email.trim().toLowerCase(),
+          password: formData.password,
+        }),
+      })
+
+      const data: RegisterResponse = await response.json()
+
+      if (response.ok && data.success) {
+        // Registrasi berhasil
+        router.push('/auth/login?message=Registrasi berhasil! Silakan login.')
+      } else {
+        setApiError(data.message || 'Terjadi kesalahan saat registrasi')
+      }
+    } catch (error) {
+      console.error('Error during registration:', error)
+      setApiError('Terjadi kesalahan jaringan. Silakan coba lagi.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <div className="w-full max-w-md mx-auto">
+      <div className="bg-white shadow-lg rounded-lg p-8">
+        <div className="text-center mb-8">
+          <h2 className="text-2xl font-bold text-gray-900">Daftar Akun Baru</h2>
+          <p className="text-gray-600 mt-2">Bergabunglah dengan Arctic Siberia LMS</p>
+        </div>
+
+        {/* Error API */}
+        {apiError && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-600 text-sm">{apiError}</p>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Input Nama */}
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+              Nama Lengkap
+            </label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              value={formData.name}
+              onChange={handleInputChange}
+              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                errors.name ? 'border-red-500' : 'border-gray-300'
+              }`}
+              placeholder="Masukkan nama lengkap"
+              disabled={isLoading}
+            />
+            {errors.name && (
+              <p className="mt-1 text-sm text-red-600">{errors.name}</p>
+            )}
+          </div>
+
+          {/* Input Email */}
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+              Email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                errors.email ? 'border-red-500' : 'border-gray-300'
+              }`}
+              placeholder="nama@email.com"
+              disabled={isLoading}
+            />
+            {errors.email && (
+              <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+            )}
+          </div>
+
+          {/* Input Password */}
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+              Password
+            </label>
+            <div className="relative">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password}
+                onChange={handleInputChange}
+                className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 pr-10 ${
+                  errors.password ? 'border-red-500' : 'border-gray-300'
+                }`}
+                placeholder="Minimal 6 karakter"
+                disabled={isLoading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                disabled={isLoading}
+              >
+                {showPassword ? (
+                  <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                ) : (
+                  <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
+                  </svg>
+                )}
+              </button>
+            </div>
+            {errors.password && (
+              <p className="mt-1 text-sm text-red-600">{errors.password}</p>
+            )}
+          </div>
+
+          {/* Input Konfirmasi Password */}
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
+              Konfirmasi Password
+            </label>
+            <input
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              value={formData.confirmPassword}
+              onChange={handleInputChange}
+              className={`w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
+              }`}
+              placeholder="Ulangi password"
+              disabled={isLoading}
+            />
+            {errors.confirmPassword && (
+              <p className="mt-1 text-sm text-red-600">{errors.confirmPassword}</p>
+            )}
+          </div>
+
+          {/* Submit Button */}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
+              isLoading
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+            }`}
+          >
+            {isLoading ? (
+              <div className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Memproses...
+              </div>
+            ) : (
+              'Daftar Sekarang'
+            )}
+          </button>
+        </form>
+
+        {/* Link ke Login */}
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600">
+            Sudah punya akun?{' '}
+            <Link href="/auth/login" className="font-medium text-blue-600 hover:text-blue-500">
+              Masuk di sini
+            </Link>
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
