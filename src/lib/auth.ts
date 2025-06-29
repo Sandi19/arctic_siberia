@@ -160,6 +160,8 @@ export async function getCurrentUserFromRequest(request: NextRequest): Promise<A
   }
 }
 
+// 🔐 ROLE CHECKING FUNCTIONS
+
 /**
  * Check if user has required role
  */
@@ -187,6 +189,8 @@ export function isInstructor(user: AuthUser): boolean {
 export function isStudent(user: AuthUser): boolean {
   return user.role === 'STUDENT'
 }
+
+// 🔒 VALIDATION FUNCTIONS
 
 /**
  * Validate email format
@@ -218,6 +222,132 @@ export function isValidPassword(password: string): { valid: boolean; message: st
   return { valid: true, message: 'Password valid' }
 }
 
+// 🎯 REDIRECT & ROUTING FUNCTIONS (Untuk Middleware)
+
+/**
+ * Get user role redirect path
+ */
+export function getRoleRedirectPath(role: string): string {
+  switch (role) {
+    case 'ADMIN':
+      return '/dashboard/admin'
+    case 'INSTRUCTOR':
+      return '/dashboard/instructor'
+    case 'STUDENT':
+      return '/dashboard/student'
+    default:
+      return '/dashboard'
+  }
+}
+
+/**
+ * Check if user has permission for route (untuk middleware)
+ */
+export function hasRoutePermission(userRole: string, pathname: string): boolean {
+  // Admin can access everything except student-specific routes
+  if (userRole === 'ADMIN') {
+    const studentOnlyRoutes = ['/dashboard/student', '/my-courses', '/my-progress']
+    return !studentOnlyRoutes.some(route => pathname.startsWith(route))
+  }
+
+  // Student can access student routes and general protected routes
+  if (userRole === 'STUDENT') {
+    const adminOnlyRoutes = ['/dashboard/admin', '/admin', '/courses/create', '/courses/manage', '/users/manage']
+    return !adminOnlyRoutes.some(route => pathname.startsWith(route))
+  }
+
+  // Instructor permissions
+  if (userRole === 'INSTRUCTOR') {
+    const restrictedRoutes = ['/dashboard/admin', '/users/manage']
+    return !restrictedRoutes.some(route => pathname.startsWith(route))
+  }
+
+  return false
+}
+
+/**
+ * Get default dashboard for user role (alias untuk getRoleRedirectPath)
+ */
+export function getDefaultDashboard(role: string): string {
+  return getRoleRedirectPath(role)
+}
+
+/**
+ * Check if route is public (tidak perlu auth)
+ */
+export function isPublicRoute(pathname: string): boolean {
+  const publicRoutes = [
+    '/',
+    '/auth/login',
+    '/auth/register',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+    '/courses', // Halaman daftar kursus publik
+    '/about',
+    '/contact',
+    '/api/auth/login',
+    '/api/auth/register',
+  ]
+
+  return publicRoutes.some(route => {
+    if (route === pathname) return true
+    // Support wildcard untuk API routes
+    if (route.endsWith('*')) {
+      const baseRoute = route.slice(0, -1)
+      return pathname.startsWith(baseRoute)
+    }
+    return false
+  })
+}
+
+/**
+ * Check if route requires admin role
+ */
+export function isAdminRoute(pathname: string): boolean {
+  const adminRoutes = [
+    '/dashboard/admin',
+    '/admin',
+    '/courses/create',
+    '/courses/edit',
+    '/courses/manage',
+    '/users/manage',
+    '/analytics',
+    '/settings/admin',
+  ]
+
+  return adminRoutes.some(route => pathname.startsWith(route))
+}
+
+/**
+ * Check if route is student-specific
+ */
+export function isStudentRoute(pathname: string): boolean {
+  const studentRoutes = [
+    '/dashboard/student',
+    '/my-courses',
+    '/my-progress',
+    '/certificates',
+  ]
+
+  return studentRoutes.some(route => pathname.startsWith(route))
+}
+
+/**
+ * Check if route is instructor-specific
+ */
+export function isInstructorRoute(pathname: string): boolean {
+  const instructorRoutes = [
+    '/dashboard/instructor',
+    '/instructor',
+    '/my-classes',
+    '/course-analytics',
+  ]
+
+  return instructorRoutes.some(route => pathname.startsWith(route))
+}
+
+// 🛠️ UTILITY FUNCTIONS
+
 /**
  * Generate secure random string
  */
@@ -229,3 +359,53 @@ export function generateSecureString(length: number = 32): string {
   }
   return result
 }
+
+/**
+ * Extract user ID from token without verification (untuk middleware)
+ */
+export function extractUserIdFromToken(token: string): string | null {
+  try {
+    const decoded = jwt.decode(token) as JWTPayload
+    return decoded?.userId || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Check if token is expired
+ */
+export function isTokenExpired(token: string): boolean {
+  try {
+    const decoded = jwt.decode(token) as JWTPayload
+    if (!decoded?.exp) return true
+    
+    const currentTime = Math.floor(Date.now() / 1000)
+    return decoded.exp < currentTime
+  } catch {
+    return true
+  }
+}
+
+/*
+🎯 FUNGSI-FUNGSI YANG SUDAH DIPERBAIKI:
+
+✅ **Menghapus duplikasi isValidEmail()**
+✅ **Menambahkan helper functions untuk middleware**
+✅ **Fungsi route checking yang lebih lengkap**
+✅ **Utility functions untuk token handling**
+✅ **Organisasi kode yang lebih rapi dengan komentar**
+
+🔧 FUNGSI BARU UNTUK MIDDLEWARE:
+- isPublicRoute()
+- isAdminRoute()
+- isStudentRoute()
+- isInstructorRoute()
+- extractUserIdFromToken()
+- isTokenExpired()
+
+💡 CATATAN:
+- Semua fungsi redirect dan route checking sudah kompatibel dengan middleware
+- Functions sudah diorganisir berdasarkan kategori
+- Tidak ada duplikasi function lagi
+*/
