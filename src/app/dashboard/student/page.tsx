@@ -1,8 +1,10 @@
+// src/app/dashboard/student/page.tsx (UPDATED dengan navbar)
 'use client'
 
 import { useAuth } from '@/hooks/use-auth'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
+import DashboardNavbar from '@/components/layout/dashboard-navbar'
 
 export default function StudentDashboard() {
   const { user, loading, isStudent } = useAuth()
@@ -35,6 +37,9 @@ export default function StudentDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Dashboard Navbar */}
+      <DashboardNavbar role="STUDENT" />
+
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -204,7 +209,7 @@ export default function StudentDashboard() {
   )
 }
 
-// Helper Components
+// Helper Components tetap sama seperti code Anda
 interface ProgressCardProps {
   title: string
   value: string
