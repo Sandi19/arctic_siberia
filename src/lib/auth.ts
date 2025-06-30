@@ -1,3 +1,5 @@
+// File: src/lib/auth.ts
+
 import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import jwt from 'jsonwebtoken'
@@ -212,13 +214,6 @@ export function isValidPassword(password: string): { valid: boolean; message: st
     return { valid: false, message: 'Password maksimal 128 karakter' }
   }
 
-  // Check for at least one letter and one number (optional, comment out if not needed)
-  // const hasLetter = /[a-zA-Z]/.test(password)
-  // const hasNumber = /[0-9]/.test(password)
-  // if (!hasLetter || !hasNumber) {
-  //   return { valid: false, message: 'Password harus mengandung huruf dan angka' }
-  // }
-
   return { valid: true, message: 'Password valid' }
 }
 
@@ -236,7 +231,7 @@ export function getRoleRedirectPath(role: string): string {
     case 'STUDENT':
       return '/dashboard/student'
     default:
-      return '/dashboard'
+      return '/dashboard/student'
   }
 }
 
@@ -282,16 +277,16 @@ export function isPublicRoute(pathname: string): boolean {
     '/auth/register',
     '/auth/forgot-password',
     '/auth/reset-password',
-    '/courses', // Halaman daftar kursus publik
+    '/courses',
     '/about',
     '/contact',
     '/api/auth/login',
     '/api/auth/register',
+    '/api/auth/logout',
   ]
 
   return publicRoutes.some(route => {
     if (route === pathname) return true
-    // Support wildcard untuk API routes
     if (route.endsWith('*')) {
       const baseRoute = route.slice(0, -1)
       return pathname.startsWith(baseRoute)
@@ -307,6 +302,10 @@ export function isAdminRoute(pathname: string): boolean {
   const adminRoutes = [
     '/dashboard/admin',
     '/admin',
+    '/admin/courses',
+    '/admin/users',
+    '/admin/analytics',
+    '/admin/settings',
     '/courses/create',
     '/courses/edit',
     '/courses/manage',
@@ -324,6 +323,7 @@ export function isAdminRoute(pathname: string): boolean {
 export function isStudentRoute(pathname: string): boolean {
   const studentRoutes = [
     '/dashboard/student',
+    '/student',
     '/my-courses',
     '/my-progress',
     '/certificates',
@@ -339,6 +339,10 @@ export function isInstructorRoute(pathname: string): boolean {
   const instructorRoutes = [
     '/dashboard/instructor',
     '/instructor',
+    '/instructor/courses',
+    '/instructor/create',
+    '/instructor/students',
+    '/instructor/analytics',
     '/my-classes',
     '/course-analytics',
   ]
@@ -387,25 +391,115 @@ export function isTokenExpired(token: string): boolean {
   }
 }
 
-/*
-🎯 FUNGSI-FUNGSI YANG SUDAH DIPERBAIKI:
+// 🔓 PERMISSION FUNCTIONS (Enhanced for 3-role system)
 
-✅ **Menghapus duplikasi isValidEmail()**
-✅ **Menambahkan helper functions untuk middleware**
-✅ **Fungsi route checking yang lebih lengkap**
-✅ **Utility functions untuk token handling**
-✅ **Organisasi kode yang lebih rapi dengan komentar**
+/**
+ * Check if user can create courses
+ */
+export function canCreateCourse(user: AuthUser): boolean {
+  return user.role === 'ADMIN' || user.role === 'INSTRUCTOR'
+}
 
-🔧 FUNGSI BARU UNTUK MIDDLEWARE:
-- isPublicRoute()
-- isAdminRoute()
-- isStudentRoute()
-- isInstructorRoute()
-- extractUserIdFromToken()
-- isTokenExpired()
+/**
+ * Check if user can approve courses
+ */
+export function canApproveCourse(user: AuthUser): boolean {
+  return user.role === 'ADMIN'
+}
 
-💡 CATATAN:
-- Semua fungsi redirect dan route checking sudah kompatibel dengan middleware
-- Functions sudah diorganisir berdasarkan kategori
-- Tidak ada duplikasi function lagi
-*/
+/**
+ * Check if user can manage all users
+ */
+export function canManageUsers(user: AuthUser): boolean {
+  return user.role === 'ADMIN'
+}
+
+/**
+ * Check if user can access course
+ */
+export function canAccessCourse(
+  user: AuthUser, 
+  courseStatus: string, 
+  instructorId: string
+): boolean {
+  switch (user.role) {
+    case 'ADMIN':
+      return true
+    case 'INSTRUCTOR':
+      return instructorId === user.id || courseStatus === 'APPROVED'
+    case 'STUDENT':
+      return courseStatus === 'APPROVED'
+    default:
+      return false
+  }
+}
+
+/**
+ * Check if user can edit course
+ */
+export function canEditCourse(user: AuthUser, instructorId: string): boolean {
+  return user.role === 'ADMIN' || 
+         (user.role === 'INSTRUCTOR' && instructorId === user.id)
+}
+
+/**
+ * Check if user can delete course
+ */
+export function canDeleteCourse(user: AuthUser, instructorId: string): boolean {
+  return user.role === 'ADMIN' || 
+         (user.role === 'INSTRUCTOR' && instructorId === user.id)
+}
+
+/**
+ * Get default course status untuk role
+ */
+export function getDefaultCourseStatus(userRole: string): string {
+  switch (userRole) {
+    case 'ADMIN':
+      return 'APPROVED'
+    case 'INSTRUCTOR':
+      return 'PENDING'
+    default:
+      return 'PENDING'
+  }
+}
+
+/**
+ * Check if user can view course analytics
+ */
+export function canViewCourseAnalytics(user: AuthUser, instructorId?: string): boolean {
+  if (user.role === 'ADMIN') return true
+  if (user.role === 'INSTRUCTOR' && instructorId === user.id) return true
+  return false
+}
+
+/**
+ * Check if user can manage course students
+ */
+export function canManageCourseStudents(user: AuthUser, instructorId: string): boolean {
+  return user.role === 'ADMIN' || 
+         (user.role === 'INSTRUCTOR' && instructorId === user.id)
+}
+
+/**
+ * Get allowed course statuses for user role
+ */
+export function getAllowedCourseStatuses(userRole: string): string[] {
+  switch (userRole) {
+    case 'ADMIN':
+      return ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED', 'PUBLISHED', 'ARCHIVED']
+    case 'INSTRUCTOR':
+      return ['DRAFT', 'PENDING', 'APPROVED', 'REJECTED']
+    case 'STUDENT':
+      return ['APPROVED']
+    default:
+      return ['APPROVED']
+  }
+}
+
+/**
+ * Check if user can enroll in course
+ */
+export function canEnrollInCourse(user: AuthUser, courseStatus: string): boolean {
+  return user.role === 'STUDENT' && courseStatus === 'APPROVED'
+}

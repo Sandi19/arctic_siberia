@@ -1,14 +1,38 @@
-// src/app/dashboard/admin/page.tsx
+// File: src/app/dashboard/admin/page.tsx
+
 'use client'
 
 import { useAuth } from '@/hooks/use-auth'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import DashboardNavbar from '@/components/layout/dashboard-navbar'
+import { 
+  CheckCircle, 
+  XCircle, 
+  Clock, 
+  Eye, 
+  AlertCircle,
+  MessageSquare
+} from 'lucide-react'
+
+// ✅ NEW: Types for Course Approval Workflow
+interface CourseForApproval {
+  id: string
+  title: string
+  instructor: string
+  instructorId: string
+  submittedAt: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  studentsInterested?: number
+  category: string
+  thumbnailUrl?: string
+}
 
 export default function AdminDashboard() {
   const { user, loading, isAdmin } = useAuth()
   const router = useRouter()
+  const [pendingCourses, setPendingCourses] = useState<CourseForApproval[]>([])
+  const [loadingCourses, setLoadingCourses] = useState(true)
 
   useEffect(() => {
     if (!loading && !isAdmin) {
@@ -23,6 +47,67 @@ export default function AdminDashboard() {
     }
   }, [loading, isAdmin, user, router])
 
+  // ✅ NEW: Mock data untuk pending courses (dalam implementasi nyata, fetch dari API)
+  useEffect(() => {
+    if (isAdmin) {
+      // Simulate API call
+      setTimeout(() => {
+        setPendingCourses([
+          {
+            id: '1',
+            title: 'Bahasa Rusia untuk Bisnis Internasional',
+            instructor: 'Dr. Ivan Petrov',
+            instructorId: 'instructor3',
+            submittedAt: '2 hari yang lalu',
+            status: 'PENDING',
+            studentsInterested: 45,
+            category: 'Business Russian'
+          },
+          {
+            id: '2',
+            title: 'Alfabet Cyrillic Advanced',
+            instructor: 'Prof. Anna Smirnova',
+            instructorId: 'instructor2',
+            submittedAt: '1 hari yang lalu',
+            status: 'PENDING',
+            studentsInterested: 23,
+            category: 'Basic Russian'
+          },
+          {
+            id: '3',
+            title: 'Budaya dan Sejarah Rusia',
+            instructor: 'Prof. Elena Kozlova',
+            instructorId: 'instructor4',
+            submittedAt: '3 jam yang lalu',
+            status: 'PENDING',
+            studentsInterested: 12,
+            category: 'Culture & History'
+          }
+        ])
+        setLoadingCourses(false)
+      }, 1000)
+    }
+  }, [isAdmin])
+
+  // ✅ NEW: Handle course approval/rejection
+  const handleCourseAction = async (courseId: string, action: 'approve' | 'reject', reason?: string) => {
+    try {
+      // In real implementation, call API
+      console.log(`${action} course ${courseId}`, reason ? `with reason: ${reason}` : '')
+      
+      // Update local state
+      setPendingCourses(prev => 
+        prev.map(course => 
+          course.id === courseId 
+            ? { ...course, status: action === 'approve' ? 'APPROVED' : 'REJECTED' }
+            : course
+        )
+      )
+    } catch (error) {
+      console.error(`Failed to ${action} course:`, error)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -34,6 +119,8 @@ export default function AdminDashboard() {
   if (!isAdmin) {
     return null // Will redirect
   }
+
+  const pendingCount = pendingCourses.filter(c => c.status === 'PENDING').length
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -53,6 +140,13 @@ export default function AdminDashboard() {
               </p>
             </div>
             <div className="flex items-center space-x-4">
+              {/* ✅ NEW: Pending courses indicator */}
+              {pendingCount > 0 && (
+                <div className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>{pendingCount} kursus pending</span>
+                </div>
+              )}
               <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
                 {user?.role}
               </span>
@@ -63,7 +157,48 @@ export default function AdminDashboard() {
 
       {/* Content */}
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* Key Metrics */}
+        {/* ✅ NEW: Course Approval Section (High Priority) */}
+        {pendingCount > 0 && (
+          <div className="mb-8">
+            <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <AlertCircle className="w-6 h-6 text-orange-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    Kursus Menunggu Persetujuan
+                  </h3>
+                  <span className="bg-orange-500 text-white px-2 py-1 rounded-full text-sm font-medium">
+                    {pendingCount}
+                  </span>
+                </div>
+                <button 
+                  onClick={() => router.push('/dashboard/admin/courses')}
+                  className="text-orange-600 hover:text-orange-800 text-sm font-medium"
+                >
+                  Lihat Semua →
+                </button>
+              </div>
+              
+              {loadingCourses ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {pendingCourses.filter(c => c.status === 'PENDING').slice(0, 3).map((course) => (
+                    <CourseApprovalCard 
+                      key={course.id} 
+                      course={course} 
+                      onAction={handleCourseAction}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ✅ PRESERVED: Key Metrics (dengan update untuk course approval) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <MetricCard
             title="Total Pengguna"
@@ -75,13 +210,13 @@ export default function AdminDashboard() {
             percentage={12}
           />
           <MetricCard
-            title="Total Kursus"
-            value="89"
-            description="kursus tersedia"
-            icon="📚"
-            color="green"
-            trend="+7 kursus baru"
-            percentage={8}
+            title="Kursus Pending"
+            value={pendingCount.toString()}
+            description="menunggu approval"
+            icon="⏳"
+            color="orange"
+            trend="Perlu review segera"
+            percentage={0}
           />
           <MetricCard
             title="Pendapatan"
@@ -97,13 +232,13 @@ export default function AdminDashboard() {
             value="892"
             description="aktif 30 hari terakhir"
             icon="⚡"
-            color="orange"
+            color="green"
             trend="71% retention rate"
             percentage={71}
           />
         </div>
 
-        {/* User Statistics */}
+        {/* ✅ PRESERVED: User Statistics */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-2 bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -170,9 +305,9 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Recent Activities & System Status */}
+        {/* ✅ PRESERVED: Recent Activities & System Status */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Recent Activities */}
+          {/* Recent Activities - Enhanced dengan course approval activities */}
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
@@ -183,18 +318,26 @@ export default function AdminDashboard() {
               </button>
             </div>
             <div className="space-y-4">
+              {/* ✅ NEW: Course approval activities */}
+              <SystemActivity
+                type="course_submitted"
+                message='Kursus "Budaya dan Sejarah Rusia" diajukan untuk review'
+                time="3 jam lalu"
+                icon="📚"
+                priority="high"
+              />
+              <SystemActivity
+                type="course_approved"
+                message='Kursus "Angka dan Waktu" disetujui dan dipublikasi'
+                time="6 jam lalu"
+                icon="✅"
+                priority="normal"
+              />
               <SystemActivity
                 type="user_registration"
                 message="24 pengguna baru terdaftar hari ini"
                 time="Just now"
                 icon="👤"
-                priority="normal"
-              />
-              <SystemActivity
-                type="course_published"
-                message="Kursus 'Advanced Russian Grammar' dipublikasi"
-                time="2 jam lalu"
-                icon="📚"
                 priority="normal"
               />
               <SystemActivity
@@ -221,7 +364,7 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* System Status */}
+          {/* System Status - Preserved */}
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Status Sistem
@@ -271,7 +414,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Course Management */}
+        {/* ✅ PRESERVED: Course Management - Enhanced dengan approval status */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-semibold text-gray-900">
@@ -281,16 +424,23 @@ export default function AdminDashboard() {
               <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
                 + Tambah Kursus
               </button>
+              <button 
+                onClick={() => router.push('/dashboard/admin/courses')}
+                className="bg-orange-100 text-orange-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-200"
+              >
+                Review Pending ({pendingCount})
+              </button>
               <button className="text-blue-600 hover:text-blue-800 text-sm font-medium px-4 py-2">
                 Kelola Kategori
               </button>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <CourseStats title="Published" count={89} color="green" />
+            <CourseStats title="Pending Review" count={pendingCount} color="orange" />
             <CourseStats title="Draft" count={12} color="yellow" />
-            <CourseStats title="Under Review" count={5} color="blue" />
+            <CourseStats title="Rejected" count={3} color="red" />
             <CourseStats title="Archived" count={23} color="gray" />
           </div>
 
@@ -334,6 +484,13 @@ export default function AdminDashboard() {
                   status="published"
                 />
                 <CourseRow
+                  title="Bisnis Internasional"
+                  instructor="Ivan Petrov"
+                  students={0}
+                  revenue="Rp 0"
+                  status="pending"
+                />
+                <CourseRow
                   title="Advanced Grammar"
                   instructor="Ivan Kozlov"
                   students={0}
@@ -345,7 +502,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Financial Overview */}
+        {/* ✅ PRESERVED: Financial Overview */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Overview Keuangan
@@ -387,7 +544,55 @@ export default function AdminDashboard() {
   )
 }
 
-// Helper Components
+// ✅ NEW: Course Approval Card Component
+const CourseApprovalCard: React.FC<{ course: CourseForApproval; onAction: (id: string, action: 'approve' | 'reject') => void }> = ({ 
+  course, 
+  onAction 
+}) => {
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex-1">
+          <h4 className="font-semibold text-gray-900 text-sm">{course.title}</h4>
+          <p className="text-xs text-gray-600 mt-1">oleh {course.instructor}</p>
+          <p className="text-xs text-gray-500">Diajukan: {course.submittedAt}</p>
+          {course.studentsInterested && (
+            <p className="text-xs text-blue-600 mt-1">{course.studentsInterested} siswa tertarik</p>
+          )}
+        </div>
+        
+        <span className="inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+          <Clock className="w-3 h-3" />
+          <span>Pending</span>
+        </span>
+      </div>
+      
+      <div className="flex space-x-2">
+        <button
+          onClick={() => onAction(course.id, 'approve')}
+          className="flex items-center space-x-1 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-xs font-medium"
+        >
+          <CheckCircle className="w-3 h-3" />
+          <span>Setujui</span>
+        </button>
+        <button
+          onClick={() => onAction(course.id, 'reject')}
+          className="flex items-center space-x-1 px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-xs font-medium"
+        >
+          <XCircle className="w-3 h-3" />
+          <span>Tolak</span>
+        </button>
+        <button className="flex items-center space-x-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-xs font-medium">
+          <Eye className="w-3 h-3" />
+          <span>Detail</span>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ✅ PRESERVED: All original helper components with minor enhancements
+
 interface MetricCardProps {
   title: string
   value: string
@@ -466,7 +671,7 @@ function UserDistribution({ role, count, percentage, color }: {
   )
 }
 
-// Tambahkan komponen helper lainnya...
+// Helper components continued...
 function WeeklyRegistration({ day, students, instructors }: {
   day: string
   students: number
@@ -603,13 +808,15 @@ function ResourceUsage({ label, percentage, color }: {
 function CourseStats({ title, count, color }: {
   title: string
   count: number
-  color: 'green' | 'yellow' | 'blue' | 'gray'
+  color: 'green' | 'yellow' | 'blue' | 'gray' | 'orange' | 'red'
 }) {
   const colorClasses = {
     green: 'bg-green-100 text-green-800',
     yellow: 'bg-yellow-100 text-yellow-800',
     blue: 'bg-blue-100 text-blue-800',
-    gray: 'bg-gray-100 text-gray-800'
+    gray: 'bg-gray-100 text-gray-800',
+    orange: 'bg-orange-100 text-orange-800',
+    red: 'bg-red-100 text-red-800'
   }
 
   return (
@@ -625,18 +832,20 @@ function CourseRow({ title, instructor, students, revenue, status }: {
   instructor: string
   students: number
   revenue: string
-  status: 'published' | 'draft' | 'review'
+  status: 'published' | 'draft' | 'review' | 'pending'
 }) {
   const statusColors = {
     published: 'bg-green-100 text-green-800',
     draft: 'bg-yellow-100 text-yellow-800',
-    review: 'bg-blue-100 text-blue-800'
+    review: 'bg-blue-100 text-blue-800',
+    pending: 'bg-orange-100 text-orange-800'
   }
 
   const statusLabels = {
     published: 'Published',
     draft: 'Draft',
-    review: 'Under Review'
+    review: 'Under Review',
+    pending: 'Pending Approval'
   }
 
   return (
@@ -659,8 +868,17 @@ function CourseRow({ title, instructor, students, revenue, status }: {
         </span>
       </td>
       <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
-        <button className="text-blue-600 hover:text-blue-900 mr-3">Edit</button>
-        <button className="text-red-600 hover:text-red-900">Delete</button>
+        {status === 'pending' ? (
+          <div className="flex space-x-2">
+            <button className="text-green-600 hover:text-green-900">Approve</button>
+            <button className="text-red-600 hover:text-red-900">Reject</button>
+          </div>
+        ) : (
+          <div className="flex space-x-2">
+            <button className="text-blue-600 hover:text-blue-900">Edit</button>
+            <button className="text-red-600 hover:text-red-900">Delete</button>
+          </div>
+        )}
       </td>
     </tr>
   )

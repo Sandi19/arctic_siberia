@@ -1,3 +1,5 @@
+// File: prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -49,12 +51,21 @@ model Course {
   thumbnail     String?
   price         Decimal         @default(0)
   originalPrice Decimal?
-  status        CourseStatus    @default(DRAFT)
+  status        CourseStatus    @default(PENDING) // ✅ UPDATED: Default ke PENDING untuk review admin
   level         DifficultyLevel @default(BEGINNER)
   duration      Int?
   language      String          @default("ru")
   isPublished   Boolean         @default(false)
   isFeatured    Boolean         @default(false)
+  
+  // ✅ NEW: Fields untuk approval workflow
+  approvalStatus  CourseApprovalStatus @default(PENDING)
+  approvedAt      DateTime?
+  approvedBy      String?  // Admin yang approve
+  rejectedAt      DateTime?
+  rejectedBy      String?  // Admin yang reject
+  rejectionReason String?  // Alasan penolakan
+  
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   instructorId  String
@@ -193,8 +204,18 @@ enum UserRole {
 
 enum CourseStatus {
   DRAFT
-  PUBLISHED
+  PENDING     // ✅ NEW: Kursus baru dari instructor, menunggu review admin
+  APPROVED    // ✅ NEW: Sudah disetujui admin, bisa dilihat student
+  REJECTED    // ✅ NEW: Ditolak admin
+  PUBLISHED   // Siap untuk dipublikasikan
   ARCHIVED
+}
+
+// ✅ NEW: Enum terpisah untuk approval workflow
+enum CourseApprovalStatus {
+  PENDING   // Menunggu review admin
+  APPROVED  // Disetujui admin
+  REJECTED  // Ditolak admin
 }
 
 enum PaymentStatus {

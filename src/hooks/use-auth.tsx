@@ -1,7 +1,8 @@
-// src/hooks/useAuth.ts
+// File: src/hooks/use-auth.tsx
+
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 
 interface User {
@@ -20,58 +21,54 @@ interface AuthState {
 }
 
 export function useAuth() {
-  const [auth, setAuth] = useState<AuthState>({
+  const [state, setState] = useState<AuthState>({
     user: null,
     loading: true,
-    error: null,
+    error: null
   })
   const router = useRouter()
 
-  // Check auth status
-  const checkAuth = async () => {
+  // 🔄 Fetch current user
+  const fetchUser = useCallback(async () => {
     try {
-      setAuth(prev => ({ ...prev, loading: true, error: null }))
+      setState(prev => ({ ...prev, loading: true, error: null }))
       
       const response = await fetch('/api/auth/me', {
         method: 'GET',
         credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
       })
 
       if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          setAuth({
-            user: data.user,
-            loading: false,
-            error: null,
-          })
-        } else {
-          setAuth({
-            user: null,
-            loading: false,
-            error: data.message,
-          })
-        }
+        const userData = await response.json()
+        setState({
+          user: userData.user,
+          loading: false,
+          error: null
+        })
       } else {
-        setAuth({
+        setState({
           user: null,
           loading: false,
-          error: 'Unauthorized',
+          error: null
         })
       }
     } catch (error) {
-      setAuth({
+      console.error('Failed to fetch user:', error)
+      setState({
         user: null,
         loading: false,
-        error: 'Network error',
+        error: 'Failed to fetch user data'
       })
     }
-  }
+  }, [])
 
-  // Login function
+  // 🚪 Login function
   const login = async (email: string, password: string, rememberMe = false) => {
     try {
-      setAuth(prev => ({ ...prev, loading: true, error: null }))
+      setState(prev => ({ ...prev, loading: true, error: null }))
 
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -84,76 +81,204 @@ export function useAuth() {
 
       const data = await response.json()
 
-      if (data.success) {
-        setAuth({
+      if (response.ok && data.success) {
+        setState({
           user: data.user,
           loading: false,
-          error: null,
+          error: null
         })
 
-        // Redirect based on role or 'from' parameter
+        // Redirect based on role or 'from' parameter (restored from old version)
         const urlParams = new URLSearchParams(window.location.search)
         const fromUrl = urlParams.get('from')
         
         if (fromUrl && fromUrl !== '/auth/login') {
           router.push(fromUrl)
         } else {
-          router.push(data.redirect_url || '/dashboard')
+          router.push(data.redirect_url || getRoleRedirectPath(data.user.role))
         }
-
-        return { success: true }
+        
+        return { success: true, message: data.message }
       } else {
-        setAuth(prev => ({
+        setState(prev => ({
           ...prev,
           loading: false,
-          error: data.message,
+          error: data.message
         }))
         return { success: false, message: data.message }
       }
     } catch (error) {
-      const errorMessage = 'Network error'
-      setAuth(prev => ({
+      const errorMessage = 'Terjadi kesalahan jaringan. Silakan coba lagi.'
+      setState(prev => ({
         ...prev,
         loading: false,
-        error: errorMessage,
+        error: errorMessage
       }))
       return { success: false, message: errorMessage }
     }
   }
 
-  // Logout function
+  // 🚪 Logout function (FIXED: Restored to redirect to homepage like old version)
   const logout = async () => {
     try {
-      await fetch('/api/auth/logout', {
+      setState(prev => ({ ...prev, loading: true }))
+
+      const response = await fetch('/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
       })
-    } catch (error) {
-      console.error('Logout error:', error)
-    } finally {
-      setAuth({
+
+      // Always clear state regardless of response
+      setState({
         user: null,
         loading: false,
-        error: null,
+        error: null
       })
-      router.push('/auth/login')
+
+      // ✅ FIXED: Redirect to homepage instead of login page (like old version)
+      router.push('/')
+      
+      // ✅ FIXED: Show success alert (like old version)
+      // Note: You may need to implement toast/alert system for this
+      console.log('Logout berhasil')
+      
+      return { success: true }
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Still clear state even if API call fails
+      setState({
+        user: null,
+        loading: false,
+        error: null
+      })
+      // ✅ FIXED: Still redirect to homepage on error
+      router.push('/')
+      return { success: false }
     }
   }
 
-  // Check auth on mount
+  // 📝 Register function
+  const register = async (name: string, email: string, password: string) => {
+    try {
+      setState(prev => ({ ...prev, loading: true, error: null }))
+
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, email, password }),
+        credentials: 'include',
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: null
+        }))
+        return { success: true, message: data.message }
+      } else {
+        setState(prev => ({
+          ...prev,
+          loading: false,
+          error: data.message
+        }))
+        return { success: false, message: data.message }
+      }
+    } catch (error) {
+      const errorMessage = 'Terjadi kesalahan jaringan. Silakan coba lagi.'
+      setState(prev => ({
+        ...prev,
+        loading: false,
+        error: errorMessage
+      }))
+      return { success: false, message: errorMessage }
+    }
+  }
+
+  // 🔄 Refresh user data
+  const refreshUser = useCallback(() => {
+    fetchUser()
+  }, [fetchUser])
+
+  // Load user on mount
   useEffect(() => {
-    checkAuth()
-  }, [])
+    fetchUser()
+  }, [fetchUser])
+
+  // 🔐 Role checking helpers
+  const isAdmin = state.user?.role === 'ADMIN'
+  const isInstructor = state.user?.role === 'INSTRUCTOR'
+  const isStudent = state.user?.role === 'STUDENT'
+  const isAuthenticated = !!state.user
+
+  // 🔓 Permission helpers (NEW: Enhanced for 3-role system)
+  const canCreateCourse = isAdmin || isInstructor
+  const canApproveCourse = isAdmin
+  const canManageUsers = isAdmin
+  const canManageAllCourses = isAdmin
 
   return {
-    user: auth.user,
-    loading: auth.loading,
-    error: auth.error,
+    // State
+    user: state.user,
+    loading: state.loading,
+    error: state.error,
+    
+    // Auth functions
     login,
     logout,
-    refetch: checkAuth,
-    isAdmin: auth.user?.role === 'ADMIN',
-    isStudent: auth.user?.role === 'STUDENT',
-    isInstructor: auth.user?.role === 'INSTRUCTOR',
+    register,
+    refreshUser,
+    
+    // Role checks
+    isAdmin,
+    isInstructor,
+    isStudent,
+    isAuthenticated,
+    
+    // Permission checks
+    canCreateCourse,
+    canApproveCourse,
+    canManageUsers,
+    canManageAllCourses,
   }
 }
+
+// 🎯 Helper function untuk redirect berdasarkan role
+function getRoleRedirectPath(role: string): string {
+  switch (role) {
+    case 'ADMIN':
+      return '/dashboard/admin'
+    case 'INSTRUCTOR':
+      return '/dashboard/instructor'
+    case 'STUDENT':
+      return '/dashboard/student'
+    default:
+      return '/dashboard/student'
+  }
+}
+
+/*
+🎯 FIXED ISSUES:
+
+✅ **Logout Redirect Fixed**
+   - Changed from `/auth/login` back to `/` (homepage)
+   - Matches behavior from old version
+
+✅ **Maintained Enhanced Features**
+   - 3-role system (ADMIN, INSTRUCTOR, STUDENT)
+   - Permission helpers
+   - Enhanced login with 'from' parameter support
+
+✅ **Preserved Old Version Logic**
+   - Login redirect with 'from' parameter
+   - Logout to homepage
+   - Success feedback (console.log for now)
+
+🔧 TODO: 
+   - Implement toast/alert system for logout success message
+   - Replace console.log with proper notification
+*/
