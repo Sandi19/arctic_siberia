@@ -1,0 +1,13 @@
+/Library/PostgreSQL/17/scripts/runpsql.sh
+
+//github push:
+git status
+git add .
+git commit -m "comment!"
+git push
+
+//run nex.js
+npm run dev
+
+// prisma studio
+npx prisma studio
