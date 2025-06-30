@@ -1,2 +1,0 @@
-ini hanyalah sebuah file untuk memberikan tanda atau jejak,
-bahwa claude telah membaca file terbaru pada repository git hub arctic_siberia.

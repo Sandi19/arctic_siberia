@@ -1,0 +1,125 @@
+.
+├── eslint.config.mjs
+├── middleware.ts
+├── next-env.d.ts
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── postcss.config.mjs
+├── .next
+├── node_modules
+├── prisma
+│   ├── schema.prisma
+│   └── seed.ts
+├── public
+│   ├── favicon.ico
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── logo.png
+│   ├── next.svg
+│   ├── sample-pdf
+│   │   └── contoh.pdf
+│   ├── vercel.svg
+│   └── window.svg
+├── README.md
+├── src
+│   ├── app
+│   │   ├── api
+│   │   │   ├── auth
+│   │   │   │   ├── login
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── logout
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── me
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── register
+│   │   │   │       └── route.ts
+│   │   │   ├── courses
+│   │   │   │   ├── [id]
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── route.ts
+│   │   │   ├── files
+│   │   │   │   └── upload
+│   │   │   │       └── route.ts
+│   │   │   └── payments
+│   │   │       ├── create
+│   │   │       │   └── route.ts
+│   │   │       └── verify
+│   │   │           └── route.ts
+│   │   ├── auth
+│   │   │   ├── forgot-password
+│   │   │   │   └── page.tsx
+│   │   │   ├── login
+│   │   │   │   └── page.tsx
+│   │   │   ├── register
+│   │   │   │   └── page.tsx
+│   │   │   └── reset-password
+│   │   │       └── page.tsx
+│   │   ├── courses
+│   │   │   ├── [id]
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   ├── dashboard
+│   │   │   ├── admin
+│   │   │   │   └── page.tsx
+│   │   │   ├── instructor
+│   │   │   │   └── page.tsx
+│   │   │   └── student
+│   │   │       └── page.tsx
+│   │   ├── layout.tsx
+│   │   ├── my-courses
+│   │   │   └── page.tsx
+│   │   ├── page.tsx
+│   │   └── payments
+│   │       └── page.tsx
+│   ├── components
+│   │   ├── course
+│   │   │   ├── course-card.tsx
+│   │   │   ├── file-list.tsx
+│   │   │   └── video-player.tsx
+│   │   ├── forms
+│   │   │   ├── course-form.tsx
+│   │   │   ├── file-upload-form.tsx
+│   │   │   ├── login-form.tsx
+│   │   │   └── register-form.tsx
+│   │   ├── home
+│   │   │   ├── about.tsx
+│   │   │   ├── cta-section.tsx
+│   │   │   ├── features.tsx
+│   │   │   ├── hero.tsx
+│   │   │   ├── hooks
+│   │   │   │   └── use-auth.tsx
+│   │   │   └── popular-courses.tsx
+│   │   ├── layout
+│   │   │   ├── auth-layout.tsx
+│   │   │   ├── dashboard-layout.tsx
+│   │   │   ├── dashboard-navbar.tsx
+│   │   │   ├── footer.tsx
+│   │   │   ├── navbar.tsx
+│   │   │   └── sidebar.tsx
+│   │   └── ui
+│   │       ├── alert.tsx
+│   │       ├── badge.tsx
+│   │       ├── button.tsx
+│   │       ├── card.tsx
+│   │       ├── index.ts
+│   │       ├── input.tsx
+│   │       └── modal.tsx
+│   ├── context
+│   │   ├── auth-context.tsx
+│   │   └── modal-context.tsx
+│   ├── hooks
+│   │   ├── use-auth.tsx
+│   │   ├── use-courses.tsx
+│   │   └── use-modal.tsx
+│   ├── lib
+│   │   ├── auth.ts
+│   │   ├── db.ts
+│   │   ├── upload.ts
+│   │   └── youtube.ts
+│   └── styles
+│       └── globals.css
+├── structure.txt
+└── tsconfig.json
+
+43 directories, 78 files
