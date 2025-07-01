@@ -1,4 +1,5 @@
 // File: prisma/schema.prisma
+// Clean schema untuk Course Builder + Session Management - NO DUPLICATES
 
 generator client {
   provider = "prisma-client-js"
@@ -19,12 +20,16 @@ model User {
   isActive          Boolean       @default(true)
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
-  certificates      Certificate[]
-  instructedCourses Course[]      @relation("CourseInstructor")
+
+  // Relations
+  instructedCourses Course[]               @relation("CourseInstructor")
   enrollments       Enrollment[]
   payments          Payment[]
   progress          Progress[]
   reviews           Review[]
+  certificates      Certificate[]
+  instructorSettings InstructorSettings?
+  quizAttempts      QuizAttempt[]
 
   @@map("users")
 }
@@ -49,36 +54,88 @@ model Course {
   description   String
   shortDesc     String?
   thumbnail     String?
-  price         Decimal         @default(0)
-  originalPrice Decimal?
-  status        CourseStatus    @default(PENDING) // ✅ UPDATED: Default ke PENDING untuk review admin
+  trailerUrl    String?         // YouTube trailer URL
+  price         Decimal         @default(0) @db.Decimal(10, 2)
+  originalPrice Decimal?        @db.Decimal(10, 2)
+  status        CourseStatus    @default(DRAFT)
   level         DifficultyLevel @default(BEGINNER)
-  duration      Int?
+  duration      Int?            // Total duration in minutes
   language      String          @default("ru")
   isPublished   Boolean         @default(false)
   isFeatured    Boolean         @default(false)
   
-  // ✅ NEW: Fields untuk approval workflow
+  // Course Structure
+  freeContentLimit  Int         @default(3)     // Free content limit
+  totalSessions     Int         @default(0)     // Total sessions count
+  totalDuration     Int         @default(0)     // Total duration in minutes
+  
+  // Approval workflow
   approvalStatus  CourseApprovalStatus @default(PENDING)
   approvedAt      DateTime?
-  approvedBy      String?  // Admin yang approve
+  approvedBy      String?
   rejectedAt      DateTime?
-  rejectedBy      String?  // Admin yang reject
-  rejectionReason String?  // Alasan penolakan
+  rejectedBy      String?
+  rejectionReason String?
   
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   instructorId  String
   categoryId    String
-  certificates  Certificate[]
-  category      Category        @relation(fields: [categoryId], references: [id])
+
+  // Relations
   instructor    User            @relation("CourseInstructor", fields: [instructorId], references: [id])
+  category      Category        @relation(fields: [categoryId], references: [id])
+  sessions      CourseSession[] // Course sessions
   enrollments   Enrollment[]
-  lessons       Lesson[]
   payments      Payment[]
   reviews       Review[]
+  certificates  Certificate[]
+  lessons       Lesson[]        // Backward compatibility
 
   @@map("courses")
+}
+
+model CourseSession {
+  id          String    @id @default(cuid())
+  courseId    String
+  title       String
+  description String?
+  order       Int
+  isFree      Boolean   @default(false)
+  duration    Int?      // Session duration in minutes
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  course      Course            @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  contents    SessionContent[]
+  progress    SessionProgress[]
+
+  @@map("course_sessions")
+}
+
+model SessionContent {
+  id                String      @id @default(cuid())
+  sessionId         String
+  type              ContentType
+  title             String
+  description       String?
+  youtubeUrl        String?     // For VIDEO type
+  zoomLink          String?     // For LIVE_SESSION type
+  quizData          Json?       // For QUIZ type
+  exerciseContent   String?     // For EXERCISE type
+  materialUrl       String?     // For DOCUMENT/AUDIO type
+  order             Int
+  duration          Int?        // Content duration in minutes
+  isFree            Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Relations
+  session           CourseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  quizAttempts      QuizAttempt[]
+
+  @@map("session_contents")
 }
 
 model Lesson {
@@ -125,13 +182,35 @@ model Enrollment {
   progress          Float     @default(0)
   isCompleted       Boolean   @default(false)
   certificateIssued Boolean   @default(false)
+  enrollmentType    EnrollmentType @default(FREE)
   userId            String
   courseId          String
+  
+  // Relations
   course            Course    @relation(fields: [courseId], references: [id])
   user              User      @relation(fields: [userId], references: [id])
+  sessionProgress   SessionProgress[]
 
   @@unique([userId, courseId])
   @@map("enrollments")
+}
+
+model SessionProgress {
+  id           String    @id @default(cuid())
+  enrollmentId String
+  sessionId    String
+  isCompleted  Boolean   @default(false)
+  completedAt  DateTime?
+  timeSpent    Int       @default(0) // in seconds
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  enrollment   Enrollment    @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  session      CourseSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, sessionId])
+  @@map("session_progress")
 }
 
 model Progress {
@@ -150,22 +229,68 @@ model Progress {
   @@map("progress")
 }
 
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  studentId String
+  contentId String
+  answers   Json     // Student answers
+  score     Float    // 0-100
+  passed    Boolean  @default(false)
+  attemptAt DateTime @default(now())
+
+  // Relations
+  student   User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  content   SessionContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@map("quiz_attempts")
+}
+
 model Payment {
   id            String        @id @default(cuid())
-  amount        Decimal
+  amount        Decimal       @db.Decimal(10, 2)
   currency      String        @default("IDR")
   status        PaymentStatus @default(PENDING)
   paymentMethod String?
   transactionId String?
   paidAt        DateTime?
+  
+  // Xendit Integration
+  xenditPaymentId String?
+  xenditInvoiceId String?
+  xenditStatus    String?
+  xenditCallback  Json?
+  
+  // Revenue Sharing
+  instructorShare Decimal?     @db.Decimal(10, 2)
+  platformShare   Decimal?     @db.Decimal(10, 2)
+  payoutStatus    PayoutStatus @default(PENDING)
+  payoutAt        DateTime?
+  
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   userId        String
   courseId      String
+  
+  // Relations
   course        Course        @relation(fields: [courseId], references: [id])
   user          User          @relation(fields: [userId], references: [id])
 
   @@map("payments")
+}
+
+model InstructorSettings {
+  id                    String   @id @default(cuid())
+  instructorId          String   @unique
+  revenueSharePercent   Decimal  @db.Decimal(5, 2) // 0-100
+  setBy                 String   // Admin ID
+  setAt                 DateTime @default(now())
+  notes                 String?
+  isActive              Boolean  @default(true)
+
+  // Relations
+  instructor            User     @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  @@map("instructor_settings")
 }
 
 model Review {
@@ -196,6 +321,7 @@ model Certificate {
   @@map("certificates")
 }
 
+// Enums
 enum UserRole {
   ADMIN
   INSTRUCTOR
@@ -204,18 +330,17 @@ enum UserRole {
 
 enum CourseStatus {
   DRAFT
-  PENDING     // ✅ NEW: Kursus baru dari instructor, menunggu review admin
-  APPROVED    // ✅ NEW: Sudah disetujui admin, bisa dilihat student
-  REJECTED    // ✅ NEW: Ditolak admin
-  PUBLISHED   // Siap untuk dipublikasikan
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  PUBLISHED
   ARCHIVED
 }
 
-// ✅ NEW: Enum terpisah untuk approval workflow
 enum CourseApprovalStatus {
-  PENDING   // Menunggu review admin
-  APPROVED  // Disetujui admin
-  REJECTED  // Ditolak admin
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum PaymentStatus {
@@ -229,4 +354,24 @@ enum DifficultyLevel {
   BEGINNER
   INTERMEDIATE
   ADVANCED
+}
+
+enum ContentType {
+  VIDEO
+  QUIZ
+  EXERCISE
+  LIVE_SESSION
+  DOCUMENT
+  AUDIO
+}
+
+enum EnrollmentType {
+  FREE
+  PAID
+}
+
+enum PayoutStatus {
+  PENDING
+  PAID
+  FAILED
 }
