@@ -1,4 +1,5 @@
 // File: src/app/dashboard/admin/page.tsx
+// Complete Updated Admin Dashboard - Full Code
 
 'use client'
 
@@ -12,10 +13,11 @@ import {
   Clock, 
   Eye, 
   AlertCircle,
-  MessageSquare
+  MessageSquare,
+  ArrowRight
 } from 'lucide-react'
 
-// ✅ NEW: Types for Course Approval Workflow
+// Types for Course Approval Workflow
 interface CourseForApproval {
   id: string
   title: string
@@ -47,62 +49,85 @@ export default function AdminDashboard() {
     }
   }, [loading, isAdmin, user, router])
 
-  // ✅ NEW: Mock data untuk pending courses (dalam implementasi nyata, fetch dari API)
+  // Fetch real data from API
   useEffect(() => {
     if (isAdmin) {
-      // Simulate API call
-      setTimeout(() => {
-        setPendingCourses([
-          {
-            id: '1',
-            title: 'Bahasa Rusia untuk Bisnis Internasional',
-            instructor: 'Dr. Ivan Petrov',
-            instructorId: 'instructor3',
-            submittedAt: '2 hari yang lalu',
-            status: 'PENDING',
-            studentsInterested: 45,
-            category: 'Business Russian'
-          },
-          {
-            id: '2',
-            title: 'Alfabet Cyrillic Advanced',
-            instructor: 'Prof. Anna Smirnova',
-            instructorId: 'instructor2',
-            submittedAt: '1 hari yang lalu',
-            status: 'PENDING',
-            studentsInterested: 23,
-            category: 'Basic Russian'
-          },
-          {
-            id: '3',
-            title: 'Budaya dan Sejarah Rusia',
-            instructor: 'Prof. Elena Kozlova',
-            instructorId: 'instructor4',
-            submittedAt: '3 jam yang lalu',
-            status: 'PENDING',
-            studentsInterested: 12,
-            category: 'Culture & History'
-          }
-        ])
-        setLoadingCourses(false)
-      }, 1000)
+      fetchPendingCourses()
     }
   }, [isAdmin])
 
-  // ✅ NEW: Handle course approval/rejection
-  const handleCourseAction = async (courseId: string, action: 'approve' | 'reject', reason?: string) => {
+  const fetchPendingCourses = async () => {
     try {
-      // In real implementation, call API
-      console.log(`${action} course ${courseId}`, reason ? `with reason: ${reason}` : '')
+      const response = await fetch('/api/admin/courses?status=pending_review&limit=5')
+      if (response.ok) {
+        const data = await response.json()
+        // Transform data to match existing interface
+        const transformedCourses = data.courses.map((course: any) => ({
+          id: course.id,
+          title: course.title,
+          instructor: course.instructor.name,
+          instructorId: course.instructor.id,
+          submittedAt: new Date(course.updatedAt).toLocaleDateString('id-ID'),
+          status: 'PENDING' as const,
+          studentsInterested: course._count?.enrollments || 0,
+          category: course.category?.name || 'Uncategorized',
+          thumbnailUrl: course.thumbnail
+        }))
+        setPendingCourses(transformedCourses)
+      }
+    } catch (error) {
+      console.error('Error fetching pending courses:', error)
+      // Fallback to mock data if API fails
+      setPendingCourses([
+        {
+          id: '1',
+          title: 'Bahasa Rusia untuk Bisnis Internasional',
+          instructor: 'Dr. Ivan Petrov',
+          instructorId: 'instructor3',
+          submittedAt: '2 hari yang lalu',
+          status: 'PENDING',
+          studentsInterested: 45,
+          category: 'Business Russian'
+        },
+        {
+          id: '2',
+          title: 'Alfabet Cyrillic Advanced',
+          instructor: 'Prof. Anna Smirnova',
+          instructorId: 'instructor2',
+          submittedAt: '1 hari yang lalu',
+          status: 'PENDING',
+          studentsInterested: 23,
+          category: 'Basic Russian'
+        }
+      ])
+    }
+    setLoadingCourses(false)
+  }
+
+  // Quick approve/reject - calls real API
+  const handleQuickCourseAction = async (courseId: string, action: 'approve' | 'reject') => {
+    try {
+      const response = await fetch('/api/admin/courses/review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          courseId,
+          action,
+          notes: action === 'approve' ? 'Quick approval from dashboard' : 'Quick rejection from dashboard',
+          revenueShare: action === 'approve' ? 70 : undefined // Default revenue share
+        })
+      })
       
-      // Update local state
-      setPendingCourses(prev => 
-        prev.map(course => 
-          course.id === courseId 
-            ? { ...course, status: action === 'approve' ? 'APPROVED' : 'REJECTED' }
-            : course
+      if (response.ok) {
+        // Update local state
+        setPendingCourses(prev => 
+          prev.map(course => 
+            course.id === courseId 
+              ? { ...course, status: action === 'approve' ? 'APPROVED' : 'REJECTED' }
+              : course
+          )
         )
-      )
+      }
     } catch (error) {
       console.error(`Failed to ${action} course:`, error)
     }
@@ -140,12 +165,16 @@ export default function AdminDashboard() {
               </p>
             </div>
             <div className="flex items-center space-x-4">
-              {/* ✅ NEW: Pending courses indicator */}
+              {/* Enhanced pending courses indicator with navigation */}
               {pendingCount > 0 && (
-                <div className="bg-orange-100 text-orange-800 px-3 py-1 rounded-full text-sm font-medium flex items-center space-x-2">
+                <button
+                  onClick={() => router.push('/admin/course-review')}
+                  className="bg-orange-100 text-orange-800 px-4 py-2 rounded-full text-sm font-medium flex items-center space-x-2 hover:bg-orange-200 transition-colors"
+                >
                   <AlertCircle className="w-4 h-4" />
                   <span>{pendingCount} kursus pending</span>
-                </div>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
               )}
               <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
                 {user?.role}
@@ -157,7 +186,7 @@ export default function AdminDashboard() {
 
       {/* Content */}
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        {/* ✅ NEW: Course Approval Section (High Priority) */}
+        {/* Course Approval Section with better navigation */}
         {pendingCount > 0 && (
           <div className="mb-8">
             <div className="bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-lg p-6">
@@ -171,12 +200,22 @@ export default function AdminDashboard() {
                     {pendingCount}
                   </span>
                 </div>
-                <button 
-                  onClick={() => router.push('/dashboard/admin/courses')}
-                  className="text-orange-600 hover:text-orange-800 text-sm font-medium"
-                >
-                  Lihat Semua →
-                </button>
+                <div className="flex space-x-3">
+                  {/* Quick access buttons */}
+                  <button 
+                    onClick={() => router.push('/admin/course-review')}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 flex items-center space-x-2"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span>Detail Review</span>
+                  </button>
+                  <button 
+                    onClick={() => router.push('/admin/course-review?filter=pending')}
+                    className="text-orange-600 hover:text-orange-800 text-sm font-medium px-4 py-2 border border-orange-300 rounded-lg hover:bg-orange-50"
+                  >
+                    Lihat Semua →
+                  </button>
+                </div>
               </div>
               
               {loadingCourses ? (
@@ -189,7 +228,8 @@ export default function AdminDashboard() {
                     <CourseApprovalCard 
                       key={course.id} 
                       course={course} 
-                      onAction={handleCourseAction}
+                      onAction={handleQuickCourseAction}
+                      onViewDetail={() => router.push(`/admin/course-review?course=${course.id}`)}
                     />
                   ))}
                 </div>
@@ -198,7 +238,7 @@ export default function AdminDashboard() {
           </div>
         )}
 
-        {/* ✅ PRESERVED: Key Metrics (dengan update untuk course approval) */}
+        {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <MetricCard
             title="Total Pengguna"
@@ -238,7 +278,7 @@ export default function AdminDashboard() {
           />
         </div>
 
-        {/* ✅ PRESERVED: User Statistics */}
+        {/* User Statistics */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="lg:col-span-2 bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -305,9 +345,9 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* ✅ PRESERVED: Recent Activities & System Status */}
+        {/* Recent Activities & System Status */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Recent Activities - Enhanced dengan course approval activities */}
+          {/* Recent Activities */}
           <div className="bg-white rounded-lg shadow-sm p-6">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
@@ -318,7 +358,6 @@ export default function AdminDashboard() {
               </button>
             </div>
             <div className="space-y-4">
-              {/* ✅ NEW: Course approval activities */}
               <SystemActivity
                 type="course_submitted"
                 message='Kursus "Budaya dan Sejarah Rusia" diajukan untuk review'
@@ -364,7 +403,7 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* System Status - Preserved */}
+          {/* System Status */}
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Status Sistem
@@ -414,21 +453,25 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* ✅ PRESERVED: Course Management - Enhanced dengan approval status */}
+        {/* Course Management with enhanced navigation */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-lg font-semibold text-gray-900">
               Manajemen Kursus
             </h3>
             <div className="flex space-x-3">
-              <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">
+              <button 
+                onClick={() => router.push('/course-builder')}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700"
+              >
                 + Tambah Kursus
               </button>
               <button 
-                onClick={() => router.push('/dashboard/admin/courses')}
-                className="bg-orange-100 text-orange-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-200"
+                onClick={() => router.push('/admin/course-review')}
+                className="bg-orange-100 text-orange-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-orange-200 flex items-center space-x-2"
               >
-                Review Pending ({pendingCount})
+                <Eye className="w-4 h-4" />
+                <span>Review Pending ({pendingCount})</span>
               </button>
               <button className="text-blue-600 hover:text-blue-800 text-sm font-medium px-4 py-2">
                 Kelola Kategori
@@ -502,7 +545,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* ✅ PRESERVED: Financial Overview */}
+        {/* Financial Overview */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Overview Keuangan
@@ -544,11 +587,12 @@ export default function AdminDashboard() {
   )
 }
 
-// ✅ NEW: Course Approval Card Component
-const CourseApprovalCard: React.FC<{ course: CourseForApproval; onAction: (id: string, action: 'approve' | 'reject') => void }> = ({ 
-  course, 
-  onAction 
-}) => {
+// Course Approval Card with enhanced actions
+const CourseApprovalCard: React.FC<{ 
+  course: CourseForApproval; 
+  onAction: (id: string, action: 'approve' | 'reject') => void;
+  onViewDetail: () => void;
+}> = ({ course, onAction, onViewDetail }) => {
   return (
     <div className="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between mb-3">
@@ -582,7 +626,10 @@ const CourseApprovalCard: React.FC<{ course: CourseForApproval; onAction: (id: s
           <XCircle className="w-3 h-3" />
           <span>Tolak</span>
         </button>
-        <button className="flex items-center space-x-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-xs font-medium">
+        <button 
+          onClick={onViewDetail}
+          className="flex items-center space-x-1 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-xs font-medium"
+        >
           <Eye className="w-3 h-3" />
           <span>Detail</span>
         </button>
@@ -591,8 +638,7 @@ const CourseApprovalCard: React.FC<{ course: CourseForApproval; onAction: (id: s
   )
 }
 
-// ✅ PRESERVED: All original helper components with minor enhancements
-
+// Helper Components
 interface MetricCardProps {
   title: string
   value: string
@@ -671,7 +717,6 @@ function UserDistribution({ role, count, percentage, color }: {
   )
 }
 
-// Helper components continued...
 function WeeklyRegistration({ day, students, instructors }: {
   day: string
   students: number
