@@ -1,17 +1,23 @@
-// File: src/app/course-builder/page.tsx
+// File: src/app/course-builder/page.tsx - FIXED IMPORT STATEMENTS
+
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Badge } from '@/components/ui/badge'
+
+// ✅ FIXED: Menggunakan barrel imports dari index.ts
+import { 
+  Card, CardContent, CardHeader, CardTitle,
+  Button,
+  Input,
+  Label,
+  Textarea,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Alert,
+  Tabs, TabsContent, TabsList, TabsTrigger,
+  Badge
+} from '@/components/ui'
+
 import { 
   Save, 
   Eye, 
@@ -26,8 +32,11 @@ import {
   AlertCircle,
   CheckCircle
 } from 'lucide-react'
+
 import SessionBuilder from '@/components/course/session-builder'
 import CoursePreview from '@/components/course/course-preview'
+
+// ... rest of the file remains exactly the same ...
 
 interface CourseData {
   id?: string
@@ -401,16 +410,12 @@ export default function CourseBuilderPage() {
                     </p>
                   </div>
                 </div>
-
                 {courseData.price > 0 && (
-                  <Alert>
-                    <DollarSign className="h-4 w-4" />
-                    <AlertDescription>
-                      Your course will be reviewed by our team before it can be published and sold. 
-                      Revenue sharing details will be provided after approval.
-                    </AlertDescription>
-                  </Alert>
-                )}
+                    <Alert
+                        type="info"
+                        message="Your course will be reviewed by our team before it can be published and sold. Revenue sharing details will be provided after approval."
+                    />
+                 )}
               </CardContent>
             </Card>
           </TabsContent>

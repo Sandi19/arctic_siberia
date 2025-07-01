@@ -1,16 +1,22 @@
-// File: src/components/course/course-preview.tsx
+// File: src/components/course/course-preview.tsx - FIXED IMPORT STATEMENTS
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Progress } from '@/components/ui/progress'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Separator } from '@/components/ui/separator'
-import { ScrollArea } from '@/components/ui/scroll-area'
+
+// ✅ FIXED: Menggunakan barrel imports dari index.ts
+import { 
+  Card, CardContent, CardHeader, CardTitle,
+  Button,
+  Badge,
+  Tabs, TabsContent, TabsList, TabsTrigger,
+  Avatar, AvatarFallback, AvatarImage,
+  Progress,
+  Alert,
+  Separator,
+  ScrollArea
+} from '@/components/ui'
+
 import { 
   Play, 
   Lock, 
@@ -25,6 +31,7 @@ import {
   Volume2,
   DollarSign,
   CheckCircle,
+  XCircle,
   AlertTriangle,
   User,
   Calendar,
@@ -40,6 +47,7 @@ import {
   Globe
 } from 'lucide-react'
 
+// ... (semua interfaces tetap sama)
 interface SessionContent {
   id: string
   type: 'VIDEO' | 'QUIZ' | 'EXERCISE' | 'LIVE_SESSION' | 'DOCUMENT' | 'AUDIO'
@@ -102,7 +110,7 @@ const LEVEL_COLORS = {
 
 const MOCK_INSTRUCTOR = {
   name: 'Dr. Elena Volkov',
-  avatar: '/api/placeholder/64/64',
+  avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=elena', // ✅ FIXED: Use dicebear instead of placeholder
   bio: 'Native Russian speaker with 10+ years of teaching experience',
   rating: 4.8,
   students: 2547,
@@ -113,7 +121,7 @@ const MOCK_REVIEWS = [
   {
     id: '1',
     student: 'John Smith',
-    avatar: '/api/placeholder/40/40',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=john', // ✅ FIXED: Use dicebear
     rating: 5,
     comment: 'Excellent course! Very well structured and easy to follow.',
     date: '2024-01-15'
@@ -121,7 +129,7 @@ const MOCK_REVIEWS = [
   {
     id: '2',
     student: 'Maria Garcia',
-    avatar: '/api/placeholder/40/40',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=maria', // ✅ FIXED: Use dicebear
     rating: 4,
     comment: 'Great content, learned a lot about Russian grammar.',
     date: '2024-01-10'
@@ -211,6 +219,52 @@ export default function CoursePreview({
     return videoId ? `https://www.youtube.com/embed/${videoId}` : null
   }
 
+  // Helper function for content quality scoring
+  const getContentQualityScore = () => {
+    let score = 0
+    let maxScore = 0
+    
+    // Basic info (30 points)
+    maxScore += 30
+    if (courseData.title && courseData.title.length >= 10) score += 10
+    if (courseData.description && courseData.description.length >= 100) score += 10
+    if (courseData.thumbnail || courseData.trailerUrl) score += 10
+    
+    // Content structure (40 points)
+    maxScore += 40
+    if (sessions.length >= 3) score += 20
+    if (stats.totalContents >= 10) score += 10
+    if (stats.totalDuration >= 120) score += 10
+    
+    // Content variety (30 points)
+    maxScore += 30
+    if (stats.videoCount > 0) score += 10
+    if (stats.quizCount > 0) score += 10
+    if (sessions.some(s => s.contents.some(c => c.type === 'LIVE_SESSION'))) score += 10
+    
+    return Math.round((score / maxScore) * 100)
+  }
+
+  // Helper function for completeness scoring
+  const getCompletenessScore = () => {
+    let score = 0
+    let maxScore = 0
+    
+    // Required fields (60 points)
+    maxScore += 60
+    if (courseData.title) score += 15
+    if (courseData.description) score += 15
+    if (courseData.category) score += 15
+    if (courseData.price >= 0) score += 15
+    
+    // Content (40 points)
+    maxScore += 40
+    if (sessions.length > 0) score += 20
+    if (stats.totalContents > 0) score += 20
+    
+    return Math.round((score / maxScore) * 100)
+  }
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       {/* Course Header */}
@@ -273,7 +327,7 @@ export default function CoursePreview({
             {/* Instructor Info */}
             <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-lg">
               <Avatar className="w-12 h-12">
-                <AvatarImage src={MOCK_INSTRUCTOR.avatar} />
+                <AvatarImage src={MOCK_INSTRUCTOR.avatar} alt={MOCK_INSTRUCTOR.name} />
                 <AvatarFallback>EV</AvatarFallback>
               </Avatar>
               <div>
@@ -615,7 +669,7 @@ export default function CoursePreview({
             <CardContent>
               <div className="flex items-start space-x-4">
                 <Avatar className="w-20 h-20">
-                  <AvatarImage src={MOCK_INSTRUCTOR.avatar} />
+                  <AvatarImage src={MOCK_INSTRUCTOR.avatar} alt={MOCK_INSTRUCTOR.name} />
                   <AvatarFallback>EV</AvatarFallback>
                 </Avatar>
                 <div className="flex-1">
@@ -694,7 +748,7 @@ export default function CoursePreview({
                   <div key={review.id} className="border-b pb-4">
                     <div className="flex items-start space-x-3">
                       <Avatar className="w-10 h-10">
-                        <AvatarImage src={review.avatar} />
+                        <AvatarImage src={review.avatar} alt={review.student} />
                         <AvatarFallback>{review.student[0]}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
@@ -827,52 +881,6 @@ export default function CoursePreview({
       )}
     </div>
   )
-
-  // Helper function for content quality scoring
-  function getContentQualityScore() {
-    let score = 0
-    let maxScore = 0
-    
-    // Basic info (30 points)
-    maxScore += 30
-    if (courseData.title && courseData.title.length >= 10) score += 10
-    if (courseData.description && courseData.description.length >= 100) score += 10
-    if (courseData.thumbnail || courseData.trailerUrl) score += 10
-    
-    // Content structure (40 points)
-    maxScore += 40
-    if (sessions.length >= 3) score += 20
-    if (stats.totalContents >= 10) score += 10
-    if (stats.totalDuration >= 120) score += 10
-    
-    // Content variety (30 points)
-    maxScore += 30
-    if (stats.videoCount > 0) score += 10
-    if (stats.quizCount > 0) score += 10
-    if (sessions.some(s => s.contents.some(c => c.type === 'LIVE_SESSION'))) score += 10
-    
-    return Math.round((score / maxScore) * 100)
-  }
-
-  // Helper function for completeness scoring
-  function getCompletenessScore() {
-    let score = 0
-    let maxScore = 0
-    
-    // Required fields (60 points)
-    maxScore += 60
-    if (courseData.title) score += 15
-    if (courseData.description) score += 15
-    if (courseData.category) score += 15
-    if (courseData.price >= 0) score += 15
-    
-    // Content (40 points)
-    maxScore += 40
-    if (sessions.length > 0) score += 20
-    if (stats.totalContents > 0) score += 20
-    
-    return Math.round((score / maxScore) * 100)
-  }
 }
 
 // Quality Check Item Component

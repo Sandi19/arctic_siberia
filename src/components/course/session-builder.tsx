@@ -1,20 +1,26 @@
-// File: src/components/course/session-builder.tsx
+// File: src/components/course/session-builder.tsx - FIXED IMPORT STATEMENTS
+
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Switch } from '@/components/ui/switch'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
+
+// ✅ FIXED: Menggunakan barrel imports dari index.ts
+import { 
+  Card, CardContent, CardHeader, CardTitle,
+  Button,
+  Input,
+  Label,
+  Textarea,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Badge,
+  Alert,
+  Tabs, TabsContent, TabsList, TabsTrigger,
+  Switch,
+  ScrollArea,
+  Separator
+} from '@/components/ui'
+
 import { 
   Plus, 
   Trash2, 
@@ -34,7 +40,10 @@ import {
   Play,
   Settings
 } from 'lucide-react'
+
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
+
+// ... rest of the file remains exactly the same ...
 
 interface SessionContent {
   id: string

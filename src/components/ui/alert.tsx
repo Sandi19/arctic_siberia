@@ -10,6 +10,24 @@ interface AlertProps {
   className?: string
   autoClose?: boolean
   autoCloseDelay?: number
+  children?: React.ReactNode // ✅ Tambahkan support untuk children
+}
+
+// ✅ TAMBAH: AlertDescription component
+interface AlertDescriptionProps {
+  children: React.ReactNode
+  className?: string
+}
+
+export const AlertDescription: React.FC<AlertDescriptionProps> = ({ 
+  children, 
+  className = '' 
+}) => {
+  return (
+    <div className={`text-sm ${className}`}>
+      {children}
+    </div>
+  )
 }
 
 const Alert: React.FC<AlertProps> = ({
@@ -19,7 +37,8 @@ const Alert: React.FC<AlertProps> = ({
   onClose,
   className = '',
   autoClose = false,
-  autoCloseDelay = 5000
+  autoCloseDelay = 5000,
+  children // ✅ Tambahkan children support
 }) => {
   const [isVisible, setIsVisible] = React.useState(true)
 
@@ -78,9 +97,13 @@ const Alert: React.FC<AlertProps> = ({
               {title}
             </h3>
           )}
-          <p className="text-sm">
-            {message}
-          </p>
+          {message && (
+            <p className="text-sm">
+              {message}
+            </p>
+          )}
+          {/* ✅ TAMBAH: Support untuk children/AlertDescription */}
+          {children && children}
         </div>
         {onClose && (
           <div className="ml-4 flex-shrink-0">

@@ -15,6 +15,7 @@
     "db:reset": "prisma migrate reset"
   },
   "dependencies": {
+    "@hello-pangea/dnd": "^16.6.0",
     "@prisma/client": "^6.10.1",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -23,17 +24,20 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
+    "clsx": "^2.1.1",
     "daisyui": "^5.0.43",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.525.0",
     "next": "15.3.4",
     "postcss": "^8.5.6",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^2.2.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4.1.11",
+    "@types/bcrypt": "^5.0.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
