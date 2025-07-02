@@ -13,6 +13,7 @@ import {
   Avatar, AvatarFallback, AvatarImage,
   Progress,
   Alert,
+  AlertDescription,
   Separator,
   ScrollArea
 } from '@/components/ui'
