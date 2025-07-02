@@ -1,0 +1,221 @@
+// File: src/app/dashboard/instructor/create/page.tsx
+
+'use client'
+
+import { useAuth } from '@/hooks/use-auth'
+import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import DashboardNavbar from '@/components/layout/dashboard-navbar'
+import { 
+  ArrowLeft,
+  BookOpen,
+  Wrench,
+  Zap,
+  Users,
+  Clock,
+  Star,
+  ChevronRight
+} from 'lucide-react'
+
+export default function CreateCoursePage() {
+  const { user, loading, isInstructor } = useAuth()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!loading && !isInstructor) {
+      if (user?.role === 'ADMIN') {
+        router.push('/dashboard/admin')
+      } else if (user?.role === 'STUDENT') {
+        router.push('/dashboard/student')
+      } else {
+        router.push('/auth/login')
+      }
+    }
+  }, [loading, isInstructor, user, router])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (!isInstructor) {
+    return null // Will redirect
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Dashboard Navbar */}
+      <DashboardNavbar role="INSTRUCTOR" />
+
+      {/* Header */}
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between py-6">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => router.push('/dashboard/instructor')}
+                className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Kembali ke Dashboard
+              </button>
+              
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Buat Kursus Baru</h1>
+                <p className="text-gray-600">Pilih cara untuk membuat kursus Anda</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="space-y-8">
+          {/* Welcome Message */}
+          <div className="text-center">
+            <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <BookOpen className="w-8 h-8 text-white" />
+            </div>
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              Saatnya Berbagi Ilmu!
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Создайте потрясающий курс и поделитесь своими знаниями с тысячами студентов по всему миру.
+            </p>
+          </div>
+
+          {/* Creation Options */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Course Builder Option */}
+            <div className="bg-white rounded-xl border border-gray-200 p-8 hover:shadow-lg transition-all duration-200 cursor-pointer group"
+                 onClick={() => router.push('/course-builder')}>
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                  <Wrench className="w-8 h-8 text-white" />
+                </div>
+                
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Course Builder</h3>
+                  <span className="inline-block bg-purple-100 text-purple-800 text-xs font-medium px-3 py-1 rounded-full mb-3">
+                    Beta - Direkomendasikan
+                  </span>
+                  <p className="text-gray-600">
+                    Tool canggih dengan interface drag-and-drop untuk membuat kursus dengan mudah dan cepat.
+                  </p>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center space-x-2 text-green-600">
+                    <Zap className="w-4 h-4" />
+                    <span>Setup otomatis dan template siap pakai</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-green-600">
+                    <Users className="w-4 h-4" />
+                    <span>Preview real-time</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-green-600">
+                    <Clock className="w-4 h-4" />
+                    <span>Hemat waktu 70%</span>
+                  </div>
+                </div>
+
+                <button className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:from-purple-700 hover:to-blue-700 transition-all duration-200 flex items-center justify-center space-x-2 group-hover:shadow-md">
+                  <span>Mulai dengan Course Builder</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Traditional Form Option */}
+            <div className="bg-white rounded-xl border border-gray-200 p-8 hover:shadow-lg transition-all duration-200 cursor-pointer group"
+                 onClick={() => router.push('/dashboard/instructor/create/traditional')}>
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 bg-gradient-to-r from-green-600 to-blue-600 rounded-xl flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                  <BookOpen className="w-8 h-8 text-white" />
+                </div>
+                
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">Form Tradisional</h3>
+                  <span className="inline-block bg-green-100 text-green-800 text-xs font-medium px-3 py-1 rounded-full mb-3">
+                    Stabil & Terpercaya
+                  </span>
+                  <p className="text-gray-600">
+                    Metode klasik dengan form step-by-step yang mudah dipahami dan familiar.
+                  </p>
+                </div>
+
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center space-x-2 text-blue-600">
+                    <Star className="w-4 h-4" />
+                    <span>Kontrol penuh atas setiap detail</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-blue-600">
+                    <Users className="w-4 h-4" />
+                    <span>Interface familiar dan mudah</span>
+                  </div>
+                  <div className="flex items-center space-x-2 text-blue-600">
+                    <Clock className="w-4 h-4" />
+                    <span>Proses step-by-step yang jelas</span>
+                  </div>
+                </div>
+
+                <button className="w-full bg-gradient-to-r from-green-600 to-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:from-green-700 hover:to-blue-700 transition-all duration-200 flex items-center justify-center space-x-2 group-hover:shadow-md">
+                  <span>Mulai dengan Form</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Tips Section */}
+          <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+            <h3 className="text-lg font-semibold text-blue-900 mb-4">💡 Tips untuk Instruktur Baru</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="space-y-2">
+                <p className="text-blue-800"><strong>1. Mulai dengan Course Builder</strong></p>
+                <p className="text-blue-700">Jika ini pertama kali Anda membuat kursus, Course Builder akan memandu Anda step-by-step.</p>
+                
+                <p className="text-blue-800"><strong>2. Siapkan Materi Dulu</strong></p>
+                <p className="text-blue-700">Pastikan video, dokumen, dan materi lainnya sudah siap sebelum mulai.</p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-blue-800"><strong>3. Kualitas Video HD</strong></p>
+                <p className="text-blue-700">Gunakan resolusi minimal 720p dan audio yang jernih untuk hasil terbaik.</p>
+                
+                <p className="text-blue-800"><strong>4. Proses Review</strong></p>
+                <p className="text-blue-700">Kursus akan direview oleh admin sebelum dipublikasi (1-3 hari kerja).</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 Statistik Platform</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div>
+                <div className="text-2xl font-bold text-blue-600">500+</div>
+                <div className="text-sm text-gray-600">Kursus Aktif</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-green-600">10K+</div>
+                <div className="text-sm text-gray-600">Siswa Terdaftar</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-purple-600">4.8</div>
+                <div className="text-sm text-gray-600">Rating Rata-rata</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-orange-600">95%</div>
+                <div className="text-sm text-gray-600">Tingkat Kepuasan</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  )
+}

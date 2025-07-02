@@ -1,29 +1,35 @@
-// File: src/app/instructor/courses/page.tsx
+// File: src/app/instructor/page.tsx
+
 'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+// ✅ FIXED: Menggunakan barrel imports dari index.ts
 import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Eye, 
-  Edit, 
-  Trash2, 
-  Users, 
-  Clock, 
-  DollarSign,
-  BarChart3,
-  BookOpen,
-  AlertCircle,
-  CheckCircle,
-  XCircle,
-  RefreshCw
+ Card, CardContent, CardHeader, CardTitle,
+ Button,
+ Input,
+ Badge,
+ Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from '@/components/ui'
+
+import { 
+ Plus, 
+ Search, 
+ Filter, 
+ Eye, 
+ Edit, 
+ Trash2, 
+ Users, 
+ Clock, 
+ DollarSign,
+ BarChart3,
+ BookOpen,
+ AlertCircle,
+ CheckCircle,
+ XCircle,
+ RefreshCw
 } from 'lucide-react'
 
 interface Course {
