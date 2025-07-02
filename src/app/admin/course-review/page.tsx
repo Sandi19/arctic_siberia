@@ -12,7 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
   Badge,
-  Alert,
+  Alert, AlertDescription,
   Tabs, TabsContent, TabsList, TabsTrigger,
   Switch,
   ScrollArea,
@@ -180,21 +180,111 @@ export default function AdminCourseReviewPage() {
     applyFilters()
   }, [courses, statusFilter, categoryFilter, levelFilter, searchQuery, sortBy])
 
-  const fetchCourses = async () => {
-    setLoading(true)
-    try {
-      const response = await fetch('/api/admin/courses')
-      if (response.ok) {
-        const data = await response.json()
-        setCourses(data.courses || [])
-      } else {
-        console.error('Failed to fetch courses')
+// REPLACE function fetchCourses (sekitar baris 190-200) dengan ini:
+const fetchCourses = async () => {
+  setLoading(true)
+  try {
+    // ✅ FIXED: Pakai endpoint yang BEKERJA dan ambil semua status
+    const [pendingResponse, draftResponse, approvedResponse, rejectedResponse] = await Promise.all([
+      fetch('/api/courses?status=PENDING_REVIEW&limit=50', { credentials: 'include' }),
+      fetch('/api/courses?status=DRAFT&limit=50', { credentials: 'include' }),
+      fetch('/api/courses?status=APPROVED&limit=50', { credentials: 'include' }),
+      fetch('/api/courses?status=REJECTED&limit=50', { credentials: 'include' })
+    ])
+
+    let allCourses: any[] = []
+
+    // Process PENDING_REVIEW courses
+    if (pendingResponse.ok) {
+      const pendingData = await pendingResponse.json()
+      if (pendingData.success && pendingData.courses) {
+        allCourses = [...allCourses, ...pendingData.courses]
       }
-    } catch (error) {
-      console.error('Error fetching courses:', error)
     }
+
+    // Process DRAFT courses (yang approvalStatus = PENDING)
+    if (draftResponse.ok) {
+      const draftData = await draftResponse.json()
+      if (draftData.success && draftData.courses) {
+        // Filter hanya DRAFT yang memiliki approvalStatus PENDING
+        const pendingDrafts = draftData.courses.filter((course: any) => 
+          course.approvalStatus === 'PENDING'
+        )
+        allCourses = [...allCourses, ...pendingDrafts]
+      }
+    }
+
+    // Process APPROVED courses
+    if (approvedResponse.ok) {
+      const approvedData = await approvedResponse.json()
+      if (approvedData.success && approvedData.courses) {
+        allCourses = [...allCourses, ...approvedData.courses]
+      }
+    }
+
+    // Process REJECTED courses
+    if (rejectedResponse.ok) {
+      const rejectedData = await rejectedResponse.json()
+      if (rejectedData.success && rejectedData.courses) {
+        allCourses = [...allCourses, ...rejectedData.courses]
+      }
+    }
+
+    // Transform courses to match expected format
+    const transformedCourses = allCourses.map((course: any) => ({
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      category: course.category?.name || 'Uncategorized',
+      level: course.level,
+      price: course.price,
+      originalPrice: course.originalPrice,
+      thumbnail: course.thumbnail,
+      status: course.status,
+      instructor: {
+        id: course.instructor?.id || '',
+        name: course.instructor?.name || 'Unknown',
+        email: course.instructor?.email || '',
+        phone: course.instructor?.phone || '',
+        bio: course.instructor?.bio || '',
+        profileImage: course.instructor?.avatar || '',
+        joinedAt: course.instructor?.createdAt || course.createdAt
+      },
+      sessions: course.sessions || [],
+      totalDuration: course.totalDuration || 0,
+      totalSessions: course.sessions?.length || 0,
+      totalVideos: course.sessions?.reduce((total: number, session: any) => 
+        total + (session.contents?.filter((c: any) => c.type === 'VIDEO').length || 0), 0
+      ) || 0,
+      totalQuizzes: course.sessions?.reduce((total: number, session: any) => 
+        total + (session.contents?.filter((c: any) => c.type === 'QUIZ').length || 0), 0
+      ) || 0,
+      freeContentLimit: course.freeContentLimit?.toString() || '3',
+      createdAt: course.createdAt,
+      updatedAt: course.updatedAt,
+      submittedAt: course.updatedAt, // Approximate
+      approvedAt: course.approvedAt,
+      approvedBy: course.approvedBy,
+      rejectedAt: course.rejectedAt,
+      rejectionReason: course.rejectionReason,
+      _count: {
+        enrollments: course._count?.enrollments || 0,
+        reviews: course._count?.reviews || 0
+      },
+      avgRating: 4.5, // Default since we don't have this data yet
+      revenueShare: 70 // Default
+    }))
+
+    setCourses(transformedCourses)
+    console.log(`✅ Course Review: Loaded ${transformedCourses.length} courses`)
+    
+  } catch (error) {
+    console.error('❌ Error fetching courses for review:', error)
+    setCourses([])
+  } finally {
     setLoading(false)
   }
+}
 
   const applyFilters = () => {
     let filtered = [...courses]
@@ -248,42 +338,50 @@ export default function AdminCourseReviewPage() {
     setFilteredCourses(filtered)
   }
 
-  const handleReviewSubmit = async () => {
-    if (!selectedCourse || !reviewAction) return
+// File: src/app/admin/course-review/page.tsx
+// REPLACE function handleReviewSubmit (sekitar baris 250-280) dengan ini:
 
-    setSubmitting(true)
-    try {
-      const response = await fetch('/api/admin/courses/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          courseId: selectedCourse.id,
-          action: reviewAction,
-          notes: reviewNotes,
-          revenueShare: reviewAction === 'approve' ? revenueShare : undefined
-        })
+const handleReviewSubmit = async () => {
+  if (!selectedCourse || !reviewAction) return
+
+  setSubmitting(true)
+  try {
+    const response = await fetch('/api/admin/courses/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', // ✅ ADDED: Credentials for authentication
+      body: JSON.stringify({
+        courseId: selectedCourse.id,
+        action: reviewAction,
+        notes: reviewNotes,
+        revenueShare: reviewAction === 'approve' ? revenueShare : undefined
       })
+    })
 
-      if (response.ok) {
-        setReviewDialog(false)
-        setSelectedCourse(null)
-        setReviewAction(null)
-        setReviewNotes('')
-        setRevenueShare(70)
-        fetchCourses()
-        
-        // Show success message
-        alert(`Course ${reviewAction === 'approve' ? 'approved' : 'rejected'} successfully!`)
-      } else {
-        const error = await response.json()
-        alert(`Error: ${error.message}`)
-      }
-    } catch (error) {
-      console.error('Error submitting review:', error)
-      alert('An error occurred while submitting the review')
+    const data = await response.json()
+
+    if (response.ok && data.success) {
+      setReviewDialog(false)
+      setSelectedCourse(null)
+      setReviewAction(null)
+      setReviewNotes('')
+      setRevenueShare(70)
+      
+      // Refresh courses list
+      fetchCourses()
+      
+      // Show success message
+      alert(`✅ Course "${data.course.title}" ${reviewAction === 'approve' ? 'approved' : 'rejected'} successfully!`)
+    } else {
+      console.error('❌ Review submission failed:', data)
+      alert(`❌ Error: ${data.message || 'Unknown error occurred'}`)
     }
-    setSubmitting(false)
+  } catch (error) {
+    console.error('❌ Error submitting review:', error)
+    alert('❌ Network error occurred while submitting the review')
   }
+  setSubmitting(false)
+}
 
   const formatPrice = (price: number) => {
     if (price === 0) return 'Free'
@@ -353,30 +451,49 @@ export default function AdminCourseReviewPage() {
     }
   }
 
-  const getContentQualityScore = (course: Course) => {
-    let score = 0
-    let maxScore = 0
-    
-    // Check basic course info (30 points)
-    maxScore += 30
-    if (course.title && course.title.length >= 10) score += 10
-    if (course.description && course.description.length >= 100) score += 10
-    if (course.thumbnail) score += 10
-    
-    // Check sessions (40 points)
-    maxScore += 40
-    if (course.sessions.length >= 3) score += 20
-    if (course.sessions.some(s => s.description)) score += 10
-    if (course.sessions.every(s => s.contents.length > 0)) score += 10
-    
-    // Check content variety (30 points)
-    maxScore += 30
-    if (course.totalVideos > 0) score += 10
-    if (course.totalQuizzes > 0) score += 10
-    if (course.sessions.some(s => s.contents.some(c => c.type === 'LIVE_SESSION'))) score += 10
-    
-    return Math.round((score / maxScore) * 100)
-  }
+// File: src/app/admin/course-review/page.tsx
+// REPLACE function getContentQualityScore (sekitar baris 450-480) dengan ini:
+
+const getContentQualityScore = (course: Course) => {
+  let score = 0
+  let maxScore = 0
+  
+  // Check basic course info (30 points)
+  maxScore += 30
+  if (course.title && course.title.length >= 10) score += 10
+  if (course.description && course.description.length >= 100) score += 10
+  if (course.thumbnail) score += 10
+  
+  // ✅ FIXED: Safe checking untuk sessions (40 points)
+  maxScore += 40
+  const sessions = course.sessions || []
+  
+  if (sessions.length >= 3) score += 20
+  if (sessions.some(s => s && s.description)) score += 10
+  
+  // ✅ FIXED: Safe checking untuk contents
+  const hasAllContents = sessions.length > 0 && sessions.every(s => 
+    s && s.contents && Array.isArray(s.contents) && s.contents.length > 0
+  )
+  if (hasAllContents) score += 10
+  
+  // ✅ FIXED: Safe checking untuk content variety (30 points)
+  maxScore += 30
+  if (course.totalVideos && course.totalVideos > 0) score += 10
+  if (course.totalQuizzes && course.totalQuizzes > 0) score += 10
+  
+  // Check for live sessions safely
+  const hasLiveSessions = sessions.some(s => 
+    s && s.contents && Array.isArray(s.contents) && 
+    s.contents.some(c => c && c.type === 'LIVE_SESSION')
+  )
+  if (hasLiveSessions) score += 10
+  
+  // ✅ FIXED: Prevent division by zero
+  if (maxScore === 0) return 0
+  
+  return Math.round((score / maxScore) * 100)
+}
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -800,7 +917,7 @@ export default function AdminCourseReviewPage() {
                           <h5 className="font-medium text-lg">Session {index + 1}: {session.title}</h5>
                           <div className="flex items-center space-x-2">
                             <Badge variant="outline" className="text-xs">
-                              {session.contents.length} items
+                              {(session.contents || []).length} items
                             </Badge>
                             {session.isFree && (
                               <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
@@ -823,7 +940,7 @@ export default function AdminCourseReviewPage() {
                         
                         <div className="space-y-2">
                           <h6 className="text-sm font-medium text-gray-700 mb-2">Session Contents:</h6>
-                          {session.contents.map((content: SessionContent) => {
+                          {(session.contents || []).map((content: SessionContent) => {
                             const ContentIcon = CONTENT_ICONS[content.type as keyof typeof CONTENT_ICONS] || FileText
                             
                             return (
@@ -881,6 +998,7 @@ export default function AdminCourseReviewPage() {
                   </div>
                 </div>
 
+
                 {/* Content Quality Analysis */}
                 <div>
                   <h4 className="font-semibold mb-3">Content Quality Analysis</h4>
@@ -888,8 +1006,8 @@ export default function AdminCourseReviewPage() {
                     <div className="text-center p-4 bg-blue-50 rounded-lg">
                       <Video className="w-8 h-8 mx-auto mb-2 text-blue-600" />
                       <div className="text-2xl font-bold text-blue-600">
-                        {selectedCourse.sessions.reduce((total, session) => 
-                          total + session.contents.filter(c => c.type === 'VIDEO').length, 0
+                        {(selectedCourse.sessions || []).reduce((total, session) => 
+                          total + ((session.contents || []).filter(c => c && c.type === 'VIDEO').length), 0
                         )}
                       </div>
                       <div className="text-xs text-gray-600">Video Contents</div>
@@ -898,8 +1016,8 @@ export default function AdminCourseReviewPage() {
                     <div className="text-center p-4 bg-green-50 rounded-lg">
                       <FileQuestion className="w-8 h-8 mx-auto mb-2 text-green-600" />
                       <div className="text-2xl font-bold text-green-600">
-                        {selectedCourse.sessions.reduce((total, session) => 
-                          total + session.contents.filter(c => c.type === 'QUIZ').length, 0
+                        {(selectedCourse.sessions || []).reduce((total, session) => 
+                          total + ((session.contents || []).filter(c => c && c.type === 'QUIZ').length), 0
                         )}
                       </div>
                       <div className="text-xs text-gray-600">Quiz Contents</div>
@@ -908,8 +1026,8 @@ export default function AdminCourseReviewPage() {
                     <div className="text-center p-4 bg-purple-50 rounded-lg">
                       <Users className="w-8 h-8 mx-auto mb-2 text-purple-600" />
                       <div className="text-2xl font-bold text-purple-600">
-                        {selectedCourse.sessions.reduce((total, session) => 
-                          total + session.contents.filter(c => c.type === 'LIVE_SESSION').length, 0
+                        {(selectedCourse.sessions || []).reduce((total, session) => 
+                          total + ((session.contents || []).filter(c => c && c.type === 'LIVE_SESSION').length), 0
                         )}
                       </div>
                       <div className="text-xs text-gray-600">Live Sessions</div>
@@ -918,8 +1036,8 @@ export default function AdminCourseReviewPage() {
                     <div className="text-center p-4 bg-yellow-50 rounded-lg">
                       <FileText className="w-8 h-8 mx-auto mb-2 text-yellow-600" />
                       <div className="text-2xl font-bold text-yellow-600">
-                        {selectedCourse.sessions.reduce((total, session) => 
-                          total + session.contents.filter(c => c.type === 'DOCUMENT' || c.type === 'EXERCISE').length, 0
+                        {(selectedCourse.sessions || []).reduce((total, session) => 
+                          total + ((session.contents || []).filter(c => c && (c.type === 'DOCUMENT' || c.type === 'EXERCISE')).length), 0
                         )}
                       </div>
                       <div className="text-xs text-gray-600">Documents/Exercises</div>
@@ -933,19 +1051,21 @@ export default function AdminCourseReviewPage() {
                       <div className="flex justify-between">
                         <span>Title & Description Quality:</span>
                         <span className="font-medium">
-                          {selectedCourse.title.length >= 10 && selectedCourse.description.length >= 100 ? '✅ Good' : '❌ Needs Improvement'}
+                          {(selectedCourse.title && selectedCourse.title.length >= 10) && 
+                          (selectedCourse.description && selectedCourse.description.length >= 100) ? '✅ Good' : '❌ Needs Improvement'}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span>Session Structure:</span>
                         <span className="font-medium">
-                          {selectedCourse.sessions.length >= 3 ? '✅ Good' : '❌ Too Few Sessions'}
+                          {(selectedCourse.sessions || []).length >= 3 ? '✅ Good' : '❌ Too Few Sessions'}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span>Content Variety:</span>
                         <span className="font-medium">
-                          {selectedCourse.totalVideos > 0 && selectedCourse.totalQuizzes > 0 ? '✅ Good' : '❌ Limited Variety'}
+                          {(selectedCourse.totalVideos && selectedCourse.totalVideos > 0) && 
+                          (selectedCourse.totalQuizzes && selectedCourse.totalQuizzes > 0) ? '✅ Good' : '❌ Limited Variety'}
                         </span>
                       </div>
                       <div className="flex justify-between">

@@ -56,54 +56,56 @@ export default function AdminDashboard() {
     }
   }, [isAdmin])
 
-  const fetchPendingCourses = async () => {
-    try {
-      const response = await fetch('/api/admin/courses?status=pending_review&limit=5')
-      if (response.ok) {
-        const data = await response.json()
-        // Transform data to match existing interface
+// File: src/app/dashboard/admin/page.tsx
+// GANTI function fetchPendingCourses dengan ini:
+
+const fetchPendingCourses = async () => {
+  try {
+    setLoadingCourses(true)
+    
+    // ✅ WORKING ENDPOINT - Terbukti ada data!
+    const response = await fetch('/api/courses?status=PENDING_REVIEW&limit=5', {
+      credentials: 'include'
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      
+      if (data.success && data.courses) {
         const transformedCourses = data.courses.map((course: any) => ({
           id: course.id,
           title: course.title,
-          instructor: course.instructor.name,
-          instructorId: course.instructor.id,
-          submittedAt: new Date(course.updatedAt).toLocaleDateString('id-ID'),
+          instructor: course.instructor?.name || 'Unknown Instructor',
+          instructorId: course.instructor?.id || '',
+          submittedAt: new Date(course.updatedAt).toLocaleDateString('id-ID', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          }),
           status: 'PENDING' as const,
           studentsInterested: course._count?.enrollments || 0,
           category: course.category?.name || 'Uncategorized',
           thumbnailUrl: course.thumbnail
         }))
+        
         setPendingCourses(transformedCourses)
+        
+        // Success log
+        console.log(`✅ Dashboard loaded ${transformedCourses.length} pending courses`)
+      } else {
+        setPendingCourses([])
       }
-    } catch (error) {
-      console.error('Error fetching pending courses:', error)
-      // Fallback to mock data if API fails
-      setPendingCourses([
-        {
-          id: '1',
-          title: 'Bahasa Rusia untuk Bisnis Internasional',
-          instructor: 'Dr. Ivan Petrov',
-          instructorId: 'instructor3',
-          submittedAt: '2 hari yang lalu',
-          status: 'PENDING',
-          studentsInterested: 45,
-          category: 'Business Russian'
-        },
-        {
-          id: '2',
-          title: 'Alfabet Cyrillic Advanced',
-          instructor: 'Prof. Anna Smirnova',
-          instructorId: 'instructor2',
-          submittedAt: '1 hari yang lalu',
-          status: 'PENDING',
-          studentsInterested: 23,
-          category: 'Basic Russian'
-        }
-      ])
+    } else {
+      console.error('❌ Response error:', response.status)
+      setPendingCourses([])
     }
+  } catch (error) {
+    console.error('❌ Fetch error:', error)
+    setPendingCourses([])
+  } finally {
     setLoadingCourses(false)
   }
-
+}
   // Quick approve/reject - calls real API
   const handleQuickCourseAction = async (courseId: string, action: 'approve' | 'reject') => {
     try {
