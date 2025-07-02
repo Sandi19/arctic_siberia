@@ -3,17 +3,21 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
+import { 
+  Card, CardContent, CardHeader, CardTitle,
+  Button,
+  Input,
+  Label,
+  Textarea,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Badge,
+  Alert,
+  Tabs, TabsContent, TabsList, TabsTrigger,
+  Switch,
+  ScrollArea,
+  Separator
+} from '@/components/ui'
 import { 
   CheckCircle, 
   XCircle, 
