@@ -154,7 +154,7 @@ const fetchPendingCourses = async () => {
       {/* Dashboard Navbar */}
       <DashboardNavbar role="ADMIN" />
 
-      {/* Header */}
+      {/* Header 
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
@@ -167,7 +167,6 @@ const fetchPendingCourses = async () => {
               </p>
             </div>
             <div className="flex items-center space-x-4">
-              {/* Enhanced pending courses indicator with navigation */}
               {pendingCount > 0 && (
                 <button
                   onClick={() => router.push('/admin/course-review')}
@@ -185,8 +184,10 @@ const fetchPendingCourses = async () => {
           </div>
         </div>
       </header>
-
+        */}
       {/* Content */}
+
+      
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         {/* Course Approval Section with better navigation */}
         {pendingCount > 0 && (

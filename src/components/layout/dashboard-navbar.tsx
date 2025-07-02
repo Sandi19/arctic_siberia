@@ -5,7 +5,7 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/use-auth'
 import { 
   Menu, 
@@ -27,7 +27,14 @@ import {
   CheckCircle,
   Clock,
   UserCheck,
-  AlertCircle
+  AlertCircle,
+  Wrench,
+  Sparkles,
+  TrendingUp,
+  FileText,
+  Calendar,
+  Heart,
+  Star
 } from 'lucide-react'
 
 interface DashboardNavbarProps {
@@ -35,46 +42,117 @@ interface DashboardNavbarProps {
   className?: string
 }
 
-// 🎯 Enhanced menu items dengan badge notifications untuk course approval workflow
+// 🎯 Enhanced menu items dengan beautiful icons dan proper navigation
 const getMenuItems = (role: string) => {
   switch (role) {
     case 'ADMIN':
       return [
-        { href: '/dashboard/admin', label: 'Dashboard', icon: Home },
+        { 
+          href: '/dashboard/admin', 
+          label: 'Dashboard', 
+          icon: Home,
+          description: 'Overview & analytics'
+        },
         { 
           href: '/dashboard/admin/courses', 
-          label: 'Kelola Kursus', 
-          icon: BookOpen,
-          badge: '3', // ✅ NEW: Pending courses notification
-          badgeColor: 'bg-orange-500'
+          label: 'Review Courses', 
+          icon: CheckCircle,
+          badge: '3', 
+          badgeColor: 'bg-orange-500',
+          description: 'Approve pending courses'
         },
-        { href: '/dashboard/admin/users', label: 'Kelola User', icon: Users },
-        { href: '/dashboard/admin/analytics', label: 'Analytics', icon: BarChart3 },
-        { href: '/dashboard/admin/settings', label: 'Pengaturan', icon: Settings },
+        { 
+          href: '/dashboard/admin/users', 
+          label: 'Manage Users', 
+          icon: Users,
+          description: 'User management'
+        },
+        { 
+          href: '/dashboard/admin/analytics', 
+          label: 'Platform Analytics', 
+          icon: TrendingUp,
+          description: 'System insights'
+        },
+        { 
+          href: '/course-builder', 
+          label: 'Create Course', 
+          icon: Wrench,
+          badge: 'Pro',
+          badgeColor: 'bg-purple-500',
+          description: 'Advanced course creation'
+        },
       ]
     
     case 'INSTRUCTOR':
       return [
-        { href: '/dashboard/instructor', label: 'Dashboard', icon: Home },
-        { href: '/dashboard/instructor/courses', label: 'Kursus Saya', icon: BookOpen },
         { 
-          href: '/dashboard/instructor/create', 
-          label: 'Buat Kursus', 
-          icon: PlusCircle,
-          badge: 'New', // ✅ NEW: Highlight new course creation
-          badgeColor: 'bg-blue-500'
+          href: '/dashboard/instructor', 
+          label: 'Dashboard', 
+          icon: Home,
+          description: 'Your overview'
         },
-        { href: '/dashboard/instructor/students', label: 'Siswa', icon: UserCheck },
-        { href: '/dashboard/instructor/analytics', label: 'Analytics', icon: BarChart3 },
+        { 
+          href: '/dashboard/instructor/courses', 
+          label: 'My Courses', 
+          icon: BookOpen,
+          description: 'Manage your content'
+        },
+        { 
+          href: '/course-builder', 
+          label: 'Create Course', 
+          icon: Wrench,
+          badge: 'Pro',
+          badgeColor: 'bg-purple-500',
+          description: 'Advanced course creation'
+        },
+        { 
+          href: '/dashboard/instructor/students', 
+          label: 'Students', 
+          icon: UserCheck,
+          description: 'Your enrolled students'
+        },
+        { 
+          href: '/dashboard/instructor/analytics', 
+          label: 'Analytics', 
+          icon: BarChart3,
+          description: 'Course performance'
+        },
       ]
     
     case 'STUDENT':
       return [
-        { href: '/dashboard/student', label: 'Dashboard', icon: Home },
-        { href: '/dashboard/student/courses', label: 'Kursus Saya', icon: BookOpen },
-        { href: '/courses', label: 'Jelajahi Kursus', icon: Search },
-        { href: '/dashboard/student/progress', label: 'Progress', icon: BarChart3 },
-        { href: '/dashboard/student/certificates', label: 'Sertifikat', icon: Award },
+        { 
+          href: '/dashboard/student', 
+          label: 'Dashboard', 
+          icon: Home,
+          description: 'Your learning hub'
+        },
+        { 
+          href: '/dashboard/student/courses', 
+          label: 'My Courses', 
+          icon: BookOpen,
+          description: 'Continue learning'
+        },
+        { 
+          href: '/courses', 
+          label: 'Explore Courses', 
+          icon: Search,
+          badge: 'Hot',
+          badgeColor: 'bg-red-500',
+          description: 'Discover new skills'
+        },
+        { 
+          href: '/dashboard/student/progress', 
+          label: 'Progress', 
+          icon: TrendingUp,
+          description: 'Track your learning'
+        },
+        { 
+          href: '/dashboard/student/certificates', 
+          label: 'Certificates', 
+          icon: Award,
+          description: 'Your achievements'
+        },
       ]
     
     default:
@@ -84,344 +162,264 @@ const getMenuItems = (role: string) => {
 
 const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ role, className = '' }) => {
   const [isOpen, setIsOpen] = useState(false)
-  const [isProfileOpen, setIsProfileOpen] = useState(false)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const { user, logout } = useAuth() // ✅ ENHANCED: Use logout from useAuth
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [notifications] = useState(3) // Mock notification count
   const router = useRouter()
+  const pathname = usePathname()
+  const { user, logout } = useAuth()
 
   const menuItems = getMenuItems(role)
 
-  // ✅ ENHANCED: Better logout handling with useAuth
   const handleLogout = async () => {
-    if (isLoggingOut) return
-    
     try {
-      setIsLoggingOut(true)
-      const result = await logout()
-      
-      if (result.success) {
-        console.log('✅ Logout berhasil')
-        // useAuth will handle redirect
-      } else {
-        console.error('❌ Logout gagal')
-        router.push('/')
-      }
+      await logout()
+      router.push('/auth/login')
     } catch (error) {
-      console.error('❌ Logout error:', error)
-      router.push('/')
-    } finally {
-      setIsLoggingOut(false)
+      console.error('Logout error:', error)
     }
   }
 
-  // ✅ PRESERVED: Original UI functions
-  const getRoleLabel = (role: string) => {
-    switch (role) {
-      case 'ADMIN': return 'Administrator'
-      case 'INSTRUCTOR': return 'Instruktur'
-      case 'STUDENT': return 'Siswa'
-      default: return 'User'
+  const isActiveRoute = (href: string) => {
+    if (href === '/dashboard/admin' || href === '/dashboard/instructor' || href === '/dashboard/student') {
+      return pathname === href
     }
+    return pathname.startsWith(href)
   }
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'ADMIN': return 'bg-red-100 text-red-800 border-red-200'
-      case 'INSTRUCTOR': return 'bg-blue-100 text-blue-800 border-blue-200'
-      case 'STUDENT': return 'bg-green-100 text-green-800 border-green-200'
-      default: return 'bg-gray-100 text-gray-800 border-gray-200'
+      case 'ADMIN': return 'from-red-500 to-pink-500'
+      case 'INSTRUCTOR': return 'from-blue-500 to-purple-600'
+      case 'STUDENT': return 'from-green-500 to-blue-500'
+      default: return 'from-gray-500 to-gray-600'
     }
   }
 
-  // ✅ NEW: Role icons for enhanced visual identification
-  const getRoleIcon = (role: string) => {
+  const getRoleBadge = (role: string) => {
     switch (role) {
-      case 'ADMIN': return Shield
-      case 'INSTRUCTOR': return GraduationCap
-      case 'STUDENT': return User
-      default: return User
+      case 'ADMIN': return { icon: Shield, label: 'Admin', color: 'bg-red-100 text-red-700' }
+      case 'INSTRUCTOR': return { icon: GraduationCap, label: 'Instructor', color: 'bg-blue-100 text-blue-700' }
+      case 'STUDENT': return { icon: User, label: 'Student', color: 'bg-green-100 text-green-700' }
+      default: return { icon: User, label: 'User', color: 'bg-gray-100 text-gray-700' }
     }
   }
 
-  const RoleIcon = getRoleIcon(role)
+  const roleBadge = getRoleBadge(role)
 
   return (
-    <nav className={`bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40 ${className}`}>
+    <nav className={`bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50 pt-5 pb-3 ${className}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo & Brand - Enhanced with better logo */}
-          <div className="flex items-center">
-            <Link href={`/dashboard/${role.toLowerCase()}`} className="flex items-center space-x-3 mr-8">
-              {/* ✅ ENHANCED: Better logo with Image component fallback */}
-              <div className="relative w-8 h-8">
-                <Image 
-                  src="/logo.png" 
-                  alt="Arctic Siberia" 
-                  width={32} 
-                  height={32}
-                  className="w-8 h-8 rounded-lg"
-                  onError={(e) => {
-                    // Fallback to icon if image fails
-                    e.currentTarget.style.display = 'none'
-                    e.currentTarget.nextElementSibling?.classList.remove('hidden')
-                  }}
-                />
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center hidden">
-                  <GraduationCap className="w-5 h-5 text-white" />
-                </div>
+          {/* Logo & Brand */}
+          <div className="flex items-center space-x-4">
+            <Link href="/" className="flex items-center space-x-3 group">
+              <div className={`w-10 h-10 rounded-xl bg-gradient-to-r ${getRoleColor(role)} flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300`}>
+                <GraduationCap className="w-6 h-6 text-white" />
               </div>
-              <span className="text-xl font-bold text-gray-900">Arctic Siberia</span>
+              <div className="hidden sm:block">
+                <div className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+                  Arctic Siberia
+                </div>
+                <div className="text-xs text-gray-500 -mt-1">Learning Platform</div>
+              </div>
             </Link>
-            
-            {/* ✅ ENHANCED: Role Badge with icon */}
-            <div className={`flex items-center space-x-2 px-3 py-1.5 rounded-full border text-sm font-medium ${getRoleColor(role)}`}>
-              <RoleIcon className="w-4 h-4" />
-              <span>{getRoleLabel(role)}</span>
-            </div>
           </div>
 
-          {/* Desktop Menu - Enhanced with badges */}
-          <div className="hidden md:block">
-            <div className="flex items-center space-x-1">
-              {menuItems.map((item) => {
-                const Icon = item.icon
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 hover:bg-gray-100 px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200 relative"
-                  >
-                    <Icon size={16} />
-                    <span>{item.label}</span>
-                    {/* ✅ NEW: Badge for notifications */}
-                    {item.badge && (
-                      <span className={`absolute -top-1 -right-1 ${item.badgeColor || 'bg-red-500'} text-white text-xs px-1.5 py-0.5 rounded-full font-medium min-w-[1.25rem] text-center`}>
-                        {item.badge}
-                      </span>
-                    )}
-                  </Link>
-                )
-              })}
-            </div>
+          {/* Desktop Navigation */}
+          <div className="hidden lg:flex items-center space-x-2">
+            {menuItems.map((item) => {
+              const Icon = item.icon
+              const isActive = isActiveRoute(item.href)
+              
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`
+                    group relative flex items-center px-4 py-2 rounded-xl transition-all duration-300
+                    ${isActive 
+                      ? 'bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700 shadow-md' 
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                    }
+                    ${item.isSpecial ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700 shadow-lg' : ''}
+                  `}
+                >
+                  <Icon className={`w-5 h-5 mr-3 ${item.isSpecial ? 'text-white' : ''}`} />
+                  <div className="flex flex-col">
+                    <span className={`text-sm font-medium ${item.isSpecial ? 'text-white' : ''}`}>
+                      {item.label}
+                    </span>
+                    <span className={`text-xs ${item.isSpecial ? 'text-blue-100' : 'text-gray-500'} opacity-0 group-hover:opacity-100 transition-opacity duration-300`}>
+                      {item.description}
+                    </span>
+                  </div>
+                  
+                  {/* Badge */}
+                  {item.badge && (
+                    <span className={`
+                      ml-2 px-2 py-1 text-xs font-medium rounded-full text-white
+                      ${item.badgeColor?.includes('gradient') ? item.badgeColor : item.badgeColor || 'bg-blue-500'}
+                    `}>
+                      {item.badge}
+                    </span>
+                  )}
+                  
+                  {/* Active indicator */}
+                  {isActive && (
+                    <div className="absolute -bottom-1 left-4 right-4 h-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full" />
+                  )}
+                </Link>
+              )
+            })}
           </div>
 
-          {/* Right Section - Enhanced notifications */}
-          <div className="hidden md:flex items-center space-x-4">
-            {/* ✅ ENHANCED: Notifications with role-specific indicators */}
-            <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors duration-200 relative">
-              <Bell size={20} />
-              {/* Notification indicators based on role */}
-              {role === 'ADMIN' && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-orange-500 rounded-full"></span>
-              )}
-              {role === 'INSTRUCTOR' && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-blue-500 rounded-full"></span>
-              )}
-              {role === 'STUDENT' && (
-                <span className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full"></span>
+          {/* Right side - Profile & Notifications */}
+          <div className="flex items-center space-x-4">
+            {/* Notifications */}
+            <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors duration-200">
+              <Bell className="w-6 h-6" />
+              {notifications > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-pulse">
+                  {notifications}
+                </span>
               )}
             </button>
 
-            {/* Profile Dropdown - Enhanced */}
+            {/* User Profile Menu */}
             <div className="relative">
               <button
-                onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+                onClick={() => setShowProfileMenu(!showProfileMenu)}
+                className="flex items-center space-x-3 p-2 rounded-xl hover:bg-gray-50 transition-colors duration-200"
               >
-                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                  {user?.avatar ? (
-                    <Image 
-                      src={user.avatar} 
-                      alt={user.name || 'Profile'} 
-                      width={32} 
-                      height={32}
-                      className="w-8 h-8 rounded-full"
-                    />
-                  ) : (
-                    <User size={16} />
-                  )}
+                <div className="flex items-center space-x-3">
+                  <div className={`w-10 h-10 rounded-full bg-gradient-to-r ${getRoleColor(role)} flex items-center justify-center shadow-md`}>
+                    <roleBadge.icon className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="hidden sm:block text-left">
+                    <div className="text-sm font-medium text-gray-900">
+                      {user?.name || 'User'}
+                    </div>
+                    <div className={`text-xs px-2 py-0.5 rounded-full ${roleBadge.color} inline-block`}>
+                      {roleBadge.label}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
-                  <p className="text-xs text-gray-500">{user?.email}</p>
-                </div>
-                <ChevronDown size={16} className="text-gray-400" />
+                <ChevronDown className={`w-4 h-4 text-gray-500 transition-transform duration-200 ${showProfileMenu ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* ✅ ENHANCED: Profile Dropdown Menu */}
-              {isProfileOpen && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                  {/* User Info Header */}
+              {/* Profile Dropdown */}
+              {showProfileMenu && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-200 py-2 z-50">
                   <div className="px-4 py-3 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                    <p className="text-xs text-gray-500">{user?.email}</p>
-                    <div className={`inline-flex items-center space-x-1 mt-2 px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(role)}`}>
-                      <RoleIcon className="w-3 h-3" />
-                      <span>{getRoleLabel(role)}</span>
+                    <div className="flex items-center space-x-3">
+                      <div className={`w-12 h-12 rounded-full bg-gradient-to-r ${getRoleColor(role)} flex items-center justify-center`}>
+                        <roleBadge.icon className="w-6 h-6 text-white" />
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900">{user?.name}</div>
+                        <div className="text-sm text-gray-500">{user?.email}</div>
+                        <div className={`text-xs px-2 py-1 rounded-full ${roleBadge.color} inline-block mt-1`}>
+                          {roleBadge.label}
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
-                  {/* Menu Items */}
-                  <Link
-                    href="/dashboard/profile"
-                    className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    onClick={() => setIsProfileOpen(false)}
-                  >
-                    <User size={16} />
-                    <span>Profile</span>
-                  </Link>
-                  
-                  <Link
-                    href="/dashboard/settings"
-                    className="flex items-center space-x-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                    onClick={() => setIsProfileOpen(false)}
-                  >
-                    <Settings size={16} />
-                    <span>Pengaturan</span>
-                  </Link>
-
-                  {/* ✅ NEW: Role-specific quick actions */}
-                  {role === 'ADMIN' && (
+                  <div className="py-2">
                     <Link
-                      href="/dashboard/admin/courses"
-                      className="flex items-center space-x-3 px-4 py-2 text-sm text-orange-700 hover:bg-orange-50"
-                      onClick={() => setIsProfileOpen(false)}
+                      href="/profile"
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      <AlertCircle size={16} />
-                      <span>Review Kursus</span>
-                      <span className="ml-auto bg-orange-500 text-white text-xs px-2 py-1 rounded-full">3</span>
+                      <User className="w-4 h-4 mr-3" />
+                      Profile Settings
                     </Link>
-                  )}
-
-                  {role === 'INSTRUCTOR' && (
                     <Link
-                      href="/dashboard/instructor/create"
-                      className="flex items-center space-x-3 px-4 py-2 text-sm text-blue-700 hover:bg-blue-50"
-                      onClick={() => setIsProfileOpen(false)}
+                      href="/settings"
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                     >
-                      <PlusCircle size={16} />
-                      <span>Buat Kursus Baru</span>
+                      <Settings className="w-4 h-4 mr-3" />
+                      Preferences
                     </Link>
-                  )}
-
-                  <div className="border-t border-gray-100 my-1"></div>
+                  </div>
                   
-                  <button
-                    onClick={handleLogout}
-                    disabled={isLoggingOut}
-                    className="flex items-center space-x-3 w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <LogOut size={16} />
-                    <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
-                  </button>
+                  <div className="border-t border-gray-100 pt-2">
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4 mr-3" />
+                      Sign Out
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden">
+            {/* Mobile menu button */}
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors duration-200"
+              className="lg:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              {isOpen ? <X size={24} /> : <Menu size={24} />}
+              {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
 
-        {/* ✅ ENHANCED: Mobile Menu */}
+        {/* Mobile Navigation */}
         {isOpen && (
-          <div className="md:hidden">
-            <div className="px-2 pt-2 pb-3 space-y-1 bg-white border-t border-gray-200">
+          <div className="lg:hidden border-t border-gray-200 py-4">
+            <div className="space-y-2">
               {menuItems.map((item) => {
                 const Icon = item.icon
+                const isActive = isActiveRoute(item.href)
+                
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="flex items-center justify-between text-gray-700 hover:text-blue-600 hover:bg-gray-100 block px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-200"
                     onClick={() => setIsOpen(false)}
+                    className={`
+                      flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-300
+                      ${isActive 
+                        ? 'bg-gradient-to-r from-blue-50 to-purple-50 text-blue-700' 
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      }
+                      ${item.isSpecial ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white' : ''}
+                    `}
                   >
-                    <div className="flex items-center space-x-2">
-                      <Icon size={16} />
-                      <span>{item.label}</span>
+                    <div className="flex items-center">
+                      <Icon className={`w-5 h-5 mr-3 ${item.isSpecial ? 'text-white' : ''}`} />
+                      <div>
+                        <div className={`font-medium ${item.isSpecial ? 'text-white' : ''}`}>
+                          {item.label}
+                        </div>
+                        <div className={`text-xs ${item.isSpecial ? 'text-blue-100' : 'text-gray-500'}`}>
+                          {item.description}
+                        </div>
+                      </div>
                     </div>
-                    {/* Badge in mobile */}
+                    
                     {item.badge && (
-                      <span className={`${item.badgeColor || 'bg-red-500'} text-white text-xs px-2 py-1 rounded-full font-medium`}>
+                      <span className={`
+                        px-2 py-1 text-xs font-medium rounded-full text-white
+                        ${item.badgeColor?.includes('gradient') ? 'bg-blue-500' : item.badgeColor || 'bg-blue-500'}
+                      `}>
                         {item.badge}
                       </span>
                     )}
                   </Link>
                 )
               })}
-              
-              <hr className="my-2" />
-              
-              {/* Mobile User Section */}
-              <div className="px-3 py-2">
-                <div className="flex items-center space-x-3 mb-3">
-                  <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                    {user?.avatar ? (
-                      <Image 
-                        src={user.avatar} 
-                        alt={user.name || 'Profile'} 
-                        width={32} 
-                        height={32}
-                        className="w-8 h-8 rounded-full"
-                      />
-                    ) : (
-                      <User size={16} />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                    <p className="text-xs text-gray-500">{user?.email}</p>
-                    <div className={`inline-flex items-center space-x-1 mt-1 px-2 py-1 rounded-full text-xs font-medium border ${getRoleColor(role)}`}>
-                      <RoleIcon className="w-3 h-3" />
-                      <span>{getRoleLabel(role)}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <Link
-                  href="/dashboard/profile"
-                  className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 py-2 text-sm"
-                  onClick={() => setIsOpen(false)}
-                >
-                  <User size={16} />
-                  <span>Profile</span>
-                </Link>
-                
-                <Link
-                  href="/dashboard/settings"
-                  className="flex items-center space-x-2 text-gray-700 hover:text-blue-600 py-2 text-sm"
-                  onClick={() => setIsOpen(false)}
-                >
-                  <Settings size={16} />
-                  <span>Pengaturan</span>
-                </Link>
-                
-                <button
-                  onClick={handleLogout}
-                  disabled={isLoggingOut}
-                  className="flex items-center space-x-2 text-red-700 hover:text-red-800 py-2 text-sm w-full disabled:opacity-50"
-                >
-                  <LogOut size={16} />
-                  <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
-                </button>
-              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Click outside to close dropdown */}
-      {isProfileOpen && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setIsProfileOpen(false)}
+      {/* Background overlay for mobile menu */}
+      {isOpen && (
+        <div 
+          className="lg:hidden fixed inset-0 bg-black bg-opacity-25 z-40"
+          onClick={() => setIsOpen(false)}
         />
       )}
     </nav>

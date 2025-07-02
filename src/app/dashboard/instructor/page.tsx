@@ -362,7 +362,7 @@ export default function InstructorDashboard() {
       {/* Dashboard Navbar */}
       <DashboardNavbar role="INSTRUCTOR" />
 
-      {/* Header */}
+      {/* Header 
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
@@ -389,6 +389,7 @@ export default function InstructorDashboard() {
           </div>
         </div>
       </header>
+      */}
 
       {/* Content */}
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">

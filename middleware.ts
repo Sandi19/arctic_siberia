@@ -1,7 +1,7 @@
 // File: middleware.ts
 
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken } from '@/lib/auth' // ✅ FIXED: Gunakan alias path, bukan relative
+import { verifyToken } from '@/lib/auth'
 
 // 🎯 KONFIGURASI RUTE BERDASARKAN 3 ROLE SYSTEM
 const PUBLIC_ROUTES = [
@@ -15,86 +15,87 @@ const PUBLIC_ROUTES = [
   '/contact',
   '/api/auth/login',
   '/api/auth/register',
-  '/api/auth/logout', // ✅ FIXED: Allow logout without redirect loops
+  '/api/auth/logout',
 ]
 
 // 👑 ADMIN - Full access, dapat approve/reject kursus
 const ADMIN_ROUTES = [
   '/dashboard/admin',
   '/admin',
-  '/admin/courses',        // ✅ NEW: Kelola semua kursus (approve/reject)
-  '/admin/users',          // ✅ NEW: Kelola semua user
-  '/admin/analytics',      // ✅ NEW: Statistik platform
-  '/admin/settings',       // ✅ NEW: Pengaturan sistem
+  '/admin/courses',        // ✅ Kelola semua kursus (approve/reject)
+  '/admin/users',          // ✅ Kelola semua user
+  '/admin/analytics',      // ✅ Statistik platform
+  '/admin/settings',       // ✅ Pengaturan sistem
   '/courses/create',       // Admin bisa buat kursus langsung APPROVED
   '/courses/edit',
   '/courses/manage',       // Kelola semua kursus
   '/users/manage',         // Kelola semua user
   '/analytics',
   '/settings/admin',
+  '/course-builder',       // ✅ NEW: ADMIN bisa akses course builder
 ]
 
 // 👨‍🏫 INSTRUCTOR - Buat dan kelola kursus sendiri (status PENDING)
 const INSTRUCTOR_ROUTES = [
   '/dashboard/instructor',
   '/instructor',
-  '/instructor/courses',      // ✅ NEW: Kursus milik sendiri
-  '/instructor/create',       // ✅ NEW: Buat kursus baru (status: PENDING)
-  '/instructor/students',     // ✅ NEW: Siswa di kursus sendiri
-  '/instructor/analytics',    // ✅ NEW: Analytics kursus sendiri
+  '/instructor/courses',      // ✅ Kursus milik sendiri
+  '/instructor/create',       // ✅ Buat kursus baru (status: PENDING)
+  '/instructor/students',     // ✅ Siswa di kursus sendiri
+  '/instructor/analytics',    // ✅ Analytics kursus sendiri
   '/my-classes',             // LEGACY: Pertahankan untuk backward compatibility
   '/course-analytics',       // LEGACY: Pertahankan untuk backward compatibility
+  '/course-builder',         // ✅ NEW: INSTRUCTOR bisa akses course builder
 ]
 
 // 🎓 STUDENT - Akses kursus yang sudah APPROVED saja
 const STUDENT_ROUTES = [
   '/dashboard/student',
-  '/dashboard',              // ✅ FIXED: /dashboard umum untuk student
-  '/student',                // ✅ NEW: Student specific routes
-  '/my-courses',             // Kursus yang didaftarkan
-  '/my-progress',            // Progress belajar
-  '/certificates',           // Sertifikat yang diperoleh
-  '/profile',               // Profile student
+  '/dashboard',
+  '/student',
+  '/my-courses',
+  '/my-progress',
+  '/certificates',
+  '/profile',
 ]
 
 // 🔐 API routes yang butuh auth tapi tidak role-specific
 const PROTECTED_API_ROUTES = [
-  '/api/courses/enroll',     // Student enroll kursus
-  '/api/user/profile',       // Update profile
-  '/api/auth/me',           // Get current user
-  '/api/upload',            // Upload file (instructor & student)
+  '/api/courses/enroll',
+  '/api/user/profile',
+  '/api/auth/me',
+  '/api/upload',
 ]
 
 // 🔧 API routes berdasarkan role
 const ADMIN_API_ROUTES = [
-  '/api/admin',             // ✅ NEW: Admin API endpoints
-  '/api/courses/approve',   // ✅ NEW: Approve kursus
-  '/api/courses/reject',    // ✅ NEW: Reject kursus
-  '/api/users/manage',      // ✅ NEW: User management API
+  '/api/admin',
+  '/api/courses/approve',
+  '/api/courses/reject',
+  '/api/users/manage',
 ]
 
 const INSTRUCTOR_API_ROUTES = [
-  '/api/instructor',        // ✅ NEW: Instructor API endpoints
-  '/api/courses/create',    // ✅ NEW: Buat kursus (akan jadi PENDING)
-  '/api/courses/update',    // Update kursus sendiri
-  '/api/lessons',          // Kelola lessons
+  '/api/instructor',
+  '/api/courses/create',
+  '/api/courses/update',
+  '/api/lessons',
 ]
 
 const STUDENT_API_ROUTES = [
-  '/api/student',          // ✅ NEW: Student API endpoints
-  '/api/progress',         // Progress tracking
-  '/api/certificates',     // Certificate requests
+  '/api/student',
+  '/api/progress',
+  '/api/certificates',
 ]
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const response = NextResponse.next()
 
-  // 🔍 DEBUGGING (hapus di production)
   console.log(`🔍 Middleware check: ${pathname}`)
 
   try {
-    // ✅ Skip jika rute publik (FIXED: No interference with logout)
+    // ✅ Skip jika rute publik
     if (isPublicRoute(pathname)) {
       console.log(`✅ Public route allowed: ${pathname}`)
       return response
@@ -112,7 +113,6 @@ export async function middleware(request: NextRequest) {
     const payload = verifyToken(token)
     if (!payload) {
       console.log(`❌ Invalid token, redirecting to login`)
-      // Hapus cookie yang tidak valid
       const loginResponse = redirectToLogin(request)
       loginResponse.cookies.delete('auth-token')
       return loginResponse
@@ -130,11 +130,11 @@ export async function middleware(request: NextRequest) {
         console.log(`🔄 Admin redirected from student-specific route to admin dashboard`)
         return NextResponse.redirect(new URL('/dashboard/admin', request.url))
       }
-      if (isInstructorRoute(pathname) && !isGeneralRoute(pathname)) {
+      if (isInstructorRoute(pathname) && !isGeneralRoute(pathname) && pathname !== '/course-builder') {
         console.log(`🔄 Admin redirected from instructor-specific route to admin dashboard`)
         return NextResponse.redirect(new URL('/dashboard/admin', request.url))
       }
-      // Admin bisa akses semua route lainnya
+      // ✅ Admin bisa akses semua route lainnya termasuk course-builder
     }
 
     // 🎓 STUDENT - Hanya bisa akses kursus APPROVED dan student routes
@@ -147,6 +147,11 @@ export async function middleware(request: NextRequest) {
         console.log(`🔄 Student redirected from instructor route to student dashboard`)
         return NextResponse.redirect(new URL('/dashboard/student', request.url))
       }
+      // ✅ SPECIAL: Block student dari course-builder secara eksplisit
+      if (pathname === '/course-builder') {
+        console.log(`🚫 Student blocked from course-builder, redirecting to student dashboard`)
+        return NextResponse.redirect(new URL('/dashboard/student', request.url))
+      }
       // Check API access
       if (isAdminAPIRoute(pathname) || isInstructorAPIRoute(pathname)) {
         console.log(`🚫 Student blocked from ${role.toLowerCase()} API`)
@@ -156,7 +161,7 @@ export async function middleware(request: NextRequest) {
 
     // 👨‍🏫 INSTRUCTOR - Buat kursus (PENDING), kelola kursus sendiri
     if (role === 'INSTRUCTOR') {
-      if (isAdminRoute(pathname)) {
+      if (isAdminRoute(pathname) && pathname !== '/course-builder') {
         console.log(`🔄 Instructor redirected from admin route to instructor dashboard`)
         return NextResponse.redirect(new URL('/dashboard/instructor', request.url))
       }
@@ -174,7 +179,7 @@ export async function middleware(request: NextRequest) {
     // ✅ Route diizinkan
     console.log(`✅ Access granted for ${role} to ${pathname}`)
     
-    // Set user info di headers untuk komponen (opsional)
+    // Set user info di headers untuk komponen
     response.headers.set('x-user-id', userId)
     response.headers.set('x-user-role', role)
     
@@ -182,13 +187,11 @@ export async function middleware(request: NextRequest) {
 
   } catch (error) {
     console.error('❌ Middleware error:', error)
-    // Fallback: redirect ke login jika terjadi error
     return redirectToLogin(request)
   }
 }
 
-// 🔧 HELPER FUNCTIONS (Enhanced dari versi lama)
-
+// 🔧 HELPER FUNCTIONS
 function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.some(route => {
     if (route === pathname) return true
@@ -216,7 +219,6 @@ function isProtectedAPIRoute(pathname: string): boolean {
   return PROTECTED_API_ROUTES.some(route => pathname.startsWith(route))
 }
 
-// ✅ NEW: Role-specific API route checkers
 function isAdminAPIRoute(pathname: string): boolean {
   return ADMIN_API_ROUTES.some(route => pathname.startsWith(route))
 }
@@ -229,12 +231,11 @@ function isStudentAPIRoute(pathname: string): boolean {
   return STUDENT_API_ROUTES.some(route => pathname.startsWith(route))
 }
 
-// ✅ NEW: Check if route is general (can be accessed by multiple roles)
 function isGeneralRoute(pathname: string): boolean {
   const generalRoutes = [
     '/profile',
-    '/courses', // Public course listing
-    '/my-courses', // Could be shared
+    '/courses',
+    '/my-courses',
   ]
   return generalRoutes.some(route => pathname.startsWith(route))
 }
@@ -242,7 +243,6 @@ function isGeneralRoute(pathname: string): boolean {
 function redirectToLogin(request: NextRequest) {
   const loginUrl = new URL('/auth/login', request.url)
   
-  // ✅ FIXED: Only set 'from' parameter for protected routes, not for homepage
   if (!isPublicRoute(request.nextUrl.pathname) && request.nextUrl.pathname !== '/') {
     loginUrl.searchParams.set('from', request.nextUrl.pathname)
   }
@@ -251,40 +251,8 @@ function redirectToLogin(request: NextRequest) {
   return NextResponse.redirect(loginUrl)
 }
 
-// 🎯 MATCHER CONFIGURATION
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder files (images, etc)
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
-
-/*
-🎯 FIXED ISSUES IN MIDDLEWARE:
-
-✅ **Logout Route Added to Public Routes**
-   - `/api/auth/logout` is now in PUBLIC_ROUTES
-   - No interference with logout process
-
-✅ **Improved Redirect Logic**
-   - Homepage (/) won't set 'from' parameter
-   - Prevents unnecessary redirects after logout
-
-✅ **Maintained Enhanced Features**
-   - 3-role system support
-   - Role-specific API route protection
-   - Smart redirects
-
-🔧 KEY FIXES:
-   1. Added `/api/auth/logout` to PUBLIC_ROUTES
-   2. Fixed redirectToLogin to not set 'from' for homepage
-   3. Maintained all enhanced role-based features
-
-This should resolve the logout redirect issue while maintaining the enhanced 3-role system.
-*/

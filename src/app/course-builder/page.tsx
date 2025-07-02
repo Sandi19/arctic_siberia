@@ -1,11 +1,12 @@
-// File: src/app/course-builder/page.tsx - COMPLETE FIXED VERSION
+// File: src/app/course-builder/page.tsx
 
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useAuth } from '@/hooks/use-auth'
 
-// ✅ FIXED: Menggunakan barrel imports dari index.ts
+// ✅ PRESERVED: Original UI imports
 import { 
   Card, CardContent, CardHeader, CardTitle,
   Button,
@@ -32,12 +33,15 @@ import {
   Settings,
   AlertCircle,
   CheckCircle,
-  Info
+  Info,
+  Lock,
+  ArrowLeft
 } from 'lucide-react'
 
 import SessionBuilder from '@/components/course/session-builder'
 import CoursePreview from '@/components/course/course-preview'
 
+// ✅ PRESERVED: Original interfaces
 interface CourseData {
   id?: string
   title: string
@@ -64,6 +68,17 @@ const CATEGORIES = [
 
 export default function CourseBuilderPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { user, loading, isInstructor, isAdmin } = useAuth()
+  
+  // ✅ NEW: Authentication & authorization states
+  const [authChecked, setAuthChecked] = useState(false)
+  const [hasPermission, setHasPermission] = useState(false)
+  const [permissionError, setPermissionError] = useState('')
+  const editCourseId = searchParams.get('edit')
+  const isEditing = !!editCourseId
+
+  // ✅ PRESERVED: Original course builder states
   const [activeTab, setActiveTab] = useState('basic')
   const [courseData, setCourseData] = useState<CourseData>({
     title: '',
@@ -75,10 +90,96 @@ export default function CourseBuilderPage() {
     status: 'DRAFT'
   })
   const [sessions, setSessions] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
+  const [courseLoading, setCourseLoading] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [error, setError] = useState<string | null>(null)
 
+  // ✅ NEW: Authentication & authorization check
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (loading) return
+
+      // 1. Check if user is logged in
+      if (!user) {
+        router.push('/auth/login?from=/course-builder')
+        return
+      }
+
+      // 2. Check if user has proper role (INSTRUCTOR or ADMIN)
+      if (!isInstructor && !isAdmin) {
+        setPermissionError('Access denied. Only instructors and administrators can access the course builder.')
+        setHasPermission(false)
+        setAuthChecked(true)
+        return
+      }
+
+      // 3. If editing, check ownership
+      if (isEditing && editCourseId) {
+        try {
+          const response = await fetch(`/api/courses/${editCourseId}`, {
+            credentials: 'include'
+          })
+
+          if (!response.ok) {
+            if (response.status === 404) {
+              setPermissionError('Course not found.')
+            } else if (response.status === 403) {
+              setPermissionError('You do not have permission to edit this course.')
+            } else {
+              setPermissionError('Failed to load course data.')
+            }
+            setHasPermission(false)
+            setAuthChecked(true)
+            return
+          }
+
+          const data = await response.json()
+          const course = data.course || data
+
+          // Check if user owns this course (unless admin)
+          if (!isAdmin && course.instructorId !== user.id) {
+            setPermissionError('You can only edit courses that you created.')
+            setHasPermission(false)
+            setAuthChecked(true)
+            return
+          }
+
+          // ✅ PRESERVED: Load course data for editing (original logic)
+          setCourseData({
+            id: course.id,
+            title: course.title || '',
+            description: course.description || '',
+            category: course.category || '',
+            level: course.level || 'BEGINNER',
+            price: course.price || 0,
+            thumbnail: course.thumbnail,
+            trailerUrl: course.trailerUrl,
+            freeContentLimit: course.freeContentLimit || 3,
+            status: course.status || 'DRAFT'
+          })
+
+          if (course.sessions) {
+            setSessions(course.sessions)
+          }
+
+        } catch (error) {
+          console.error('Error loading course:', error)
+          setPermissionError('Failed to load course data.')
+          setHasPermission(false)
+          setAuthChecked(true)
+          return
+        }
+      }
+
+      // ✅ All checks passed
+      setHasPermission(true)
+      setAuthChecked(true)
+    }
+
+    checkAccess()
+  }, [user, loading, isInstructor, isAdmin, isEditing, editCourseId, router])
+
+   // ✅ PRESERVED: All original course builder logic from here onwards...
   // Auto-save functionality - FIXED
   useEffect(() => {
     const autoSave = setTimeout(() => {
@@ -89,6 +190,60 @@ export default function CourseBuilderPage() {
 
     return () => clearTimeout(autoSave)
   }, [courseData, sessions]) // Added sessions dependency
+
+  
+  // ✅ NEW: Show loading spinner while checking auth
+  if (loading || !authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking permissions...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // ✅ NEW: Show permission error
+  if (!hasPermission) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md mx-auto p-8">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Lock className="w-8 h-8 text-red-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Access Denied</h1>
+          <p className="text-gray-600 mb-6">{permissionError}</p>
+          <div className="space-y-3">
+            <Button 
+              onClick={() => router.back()} 
+              variant="outline"
+              className="w-full"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Go Back
+            </Button>
+            {isInstructor && (
+              <Button 
+                onClick={() => router.push('/dashboard/instructor')} 
+                className="w-full"
+              >
+                Go to Dashboard
+              </Button>
+            )}
+            {isAdmin && (
+              <Button 
+                onClick={() => router.push('/dashboard/admin')} 
+                className="w-full"
+              >
+                Go to Admin Dashboard
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const handleInputChange = (field: keyof CourseData, value: any) => {
     setCourseData(prev => ({
@@ -197,6 +352,7 @@ export default function CourseBuilderPage() {
     }
   }
 
+  // ✅ PRESERVED: All remaining original functions unchanged
   const validateForSubmission = () => {
     const errors: string[] = []
     
@@ -291,7 +447,7 @@ export default function CourseBuilderPage() {
       return
     }
 
-    setLoading(true)
+    setCourseLoading(true)
     setError(null)
     
     try {
@@ -381,7 +537,7 @@ export default function CourseBuilderPage() {
       setError(error.message || 'Failed to submit course for review')
     }
     
-    setLoading(false)
+    setCourseLoading(false)
   }
 
   const getCompletionPercentage = () => {
@@ -406,7 +562,7 @@ export default function CourseBuilderPage() {
            courseData.category &&
            sessions.length > 0
   }
-
+  // ✅ PRESERVED: Original UI render with enhanced header
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -463,7 +619,7 @@ export default function CourseBuilderPage() {
               variant="outline" 
               size="sm"
               onClick={handleSaveDraft}
-              disabled={loading || saveStatus === 'saving'}
+              disabled={courseLoading || saveStatus === 'saving'}
             >
               <Save className="w-4 h-4 mr-2" />
               Save Draft
@@ -472,10 +628,10 @@ export default function CourseBuilderPage() {
             <Button 
               size="sm"
               onClick={handleSubmitForReview}
-              disabled={loading || !canSubmitForReview()}
+              disabled={courseLoading || !canSubmitForReview()}
             >
               <Send className="w-4 h-4 mr-2" />
-              {loading ? 'Submitting...' : 'Submit for Review'}
+              {courseLoading ? 'Submitting...' : 'Submit for Review'}
             </Button>
           </div>
         </div>
