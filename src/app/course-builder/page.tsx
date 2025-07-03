@@ -40,6 +40,8 @@ import {
 
 import SessionBuilder from '@/components/course/session-builder'
 import CoursePreview from '@/components/course/course-preview'
+import BasicInfoForm from '@/components/course/basic-info-form'
+import PricingForm from '@/components/course/pricing-form'
 
 // ✅ PRESERVED: Original interfaces
 interface CourseData {
@@ -682,94 +684,12 @@ export default function CourseBuilderPage() {
           </TabsList>
 
           {/* Basic Information Tab */}
-          <TabsContent value="basic" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Course Information</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Course Title *</Label>
-                    <Input
-                      id="title"
-                      placeholder="e.g., Russian Grammar Fundamentals"
-                      value={courseData.title}
-                      onChange={(e) => handleInputChange('title', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Category *</Label>
-                    <Select 
-                      value={courseData.category} 
-                      onValueChange={(value) => handleInputChange('category', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CATEGORIES.map(category => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="description">Course Description *</Label>
-                  <Textarea
-                    id="description"
-                    placeholder="Describe what students will learn in this course..."
-                    value={courseData.description}
-                    onChange={(e) => handleInputChange('description', e.target.value)}
-                    rows={4}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="level">Course Level</Label>
-                    <Select 
-                      value={courseData.level} 
-                      onValueChange={(value) => handleInputChange('level', value)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="BEGINNER">Beginner</SelectItem>
-                        <SelectItem value="INTERMEDIATE">Intermediate</SelectItem>
-                        <SelectItem value="ADVANCED">Advanced</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="trailer">Trailer URL (YouTube)</Label>
-                    <Input
-                      id="trailer"
-                      placeholder="https://youtube.com/watch?v=..."
-                      value={courseData.trailerUrl || ''}
-                      onChange={(e) => handleInputChange('trailerUrl', e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="thumbnail">Course Thumbnail URL</Label>
-                  <Input
-                    id="thumbnail"
-                    placeholder="https://example.com/thumbnail.jpg"
-                    value={courseData.thumbnail || ''}
-                    onChange={(e) => handleInputChange('thumbnail', e.target.value)}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+          <TabsContent value="basic">
+            <BasicInfoForm 
+              courseData={courseData}
+              onDataChange={handleInputChange}
+              isEditing={isEditing}
+            />
           </TabsContent>
 
           {/* Sessions Tab */}
@@ -782,56 +702,13 @@ export default function CourseBuilderPage() {
           </TabsContent>
 
           {/* Pricing Tab */}
-          <TabsContent value="pricing" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Course Pricing</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="price">Course Price (IDR)</Label>
-                    <Input
-                      id="price"
-                      type="number"
-                      min="0"
-                      max="10000000"
-                      placeholder="0"
-                      value={courseData.price}
-                      onChange={(e) => handleInputChange('price', parseInt(e.target.value) || 0)}
-                    />
-                    <p className="text-sm text-gray-500">
-                      Set to 0 for free course. Maximum: 10,000,000 IDR
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="freeLimit">Free Content Limit</Label>
-                    <Input
-                      id="freeLimit"
-                      type="number"
-                      min="0"
-                      max="10"
-                      value={courseData.freeContentLimit}
-                      onChange={(e) => handleInputChange('freeContentLimit', parseInt(e.target.value) || 0)}
-                    />
-                    <p className="text-sm text-gray-500">
-                      Number of free sessions/content students can access
-                    </p>
-                  </div>
-                </div>
-
-                {courseData.price > 0 && (
-                  <Alert className="border-blue-200 bg-blue-50">
-                    <Info className="h-4 w-4 text-blue-600" />
-                    <AlertDescription className="text-blue-700">
-                      Your course will be reviewed by our team before it can be published and sold. 
-                      Revenue sharing details will be provided after approval.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="pricing">
+            <PricingForm 
+              courseData={courseData}
+              onDataChange={handleInputChange}
+              totalSessions={sessions.length}
+              totalContents={sessions.reduce((total, session) => total + session.contents.length, 0)}
+            />
           </TabsContent>
 
           {/* Preview Tab */}

@@ -1,4 +1,4 @@
-// File: src/components/course/session-builder.tsx - FIXED IMPORT STATEMENTS
+// File: src/components/course/session-builder.tsx - IMPROVED UI/UX VERSION
 
 'use client'
 
@@ -18,7 +18,8 @@ import {
   Tabs, TabsContent, TabsList, TabsTrigger,
   Switch,
   ScrollArea,
-  Separator
+  Separator,
+  AlertDescription
 } from '@/components/ui'
 
 import { 
@@ -38,13 +39,15 @@ import {
   CheckCircle,
   Clock,
   Play,
-  Settings
+  Settings,
+  BookOpen,
+  Target,
+  Zap
 } from 'lucide-react'
 
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 
-// ... rest of the file remains exactly the same ...
-
+// Interfaces remain the same
 interface SessionContent {
   id: string
   type: 'VIDEO' | 'QUIZ' | 'EXERCISE' | 'LIVE_SESSION' | 'DOCUMENT' | 'AUDIO'
@@ -138,6 +141,7 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
 
   const generateId = () => Math.random().toString(36).substr(2, 9)
 
+  // All existing handler functions remain the same
   const handleAddSession = () => {
     if (!newSessionTitle.trim()) return
 
@@ -344,34 +348,34 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
   }
 
   return (
-    <div className="space-y-6">
-      {/* Statistics Cards */}
+    <div className="max-w-4xl mx-auto px-6 space-y-6">
+      {/* ✅ IMPROVED: Better statistics cards */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <Card>
+        <Card className="transition-all duration-200 hover:shadow-md">
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-blue-600">{sessions.length}</div>
             <div className="text-sm text-gray-600">Sessions</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="transition-all duration-200 hover:shadow-md">
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-green-600">{getContentTypeCount('VIDEO')}</div>
             <div className="text-sm text-gray-600">Videos</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="transition-all duration-200 hover:shadow-md">
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-purple-600">{getContentTypeCount('QUIZ')}</div>
             <div className="text-sm text-gray-600">Quizzes</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="transition-all duration-200 hover:shadow-md">
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-orange-600">{getFreeContentCount()}</div>
             <div className="text-sm text-gray-600">Free Content</div>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="transition-all duration-200 hover:shadow-md">
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-gray-600">{Math.round(getTotalDuration())}m</div>
             <div className="text-sm text-gray-600">Total Duration</div>
@@ -379,17 +383,25 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
         </Card>
       </div>
 
-      {/* Add Session Button */}
-      <Card>
+      {/* ✅ IMPROVED: Header card with better styling */}
+      <Card className="border-blue-200 bg-blue-50">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold">Course Sessions</h3>
-              <p className="text-sm text-gray-600">
-                Create and organize your course sessions. Drag to reorder.
-              </p>
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                <BookOpen className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-blue-900">Course Sessions</h3>
+                <p className="text-sm text-blue-700">
+                  Create and organize your course sessions. Drag to reorder for optimal learning flow.
+                </p>
+              </div>
             </div>
-            <Button onClick={() => setShowSessionDialog(true)}>
+            <Button 
+              onClick={() => setShowSessionDialog(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+            >
               <Plus className="w-4 h-4 mr-2" />
               Add Session
             </Button>
@@ -397,20 +409,44 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
         </CardContent>
       </Card>
 
-      {/* Sessions List */}
+      {/* ✅ IMPROVED: Modern empty state */}
       {sessions.length === 0 ? (
-        <Card>
+        <Card className="border-2 border-dashed border-gray-300 bg-gray-50">
           <CardContent className="p-12 text-center">
-            <Video className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-600 mb-2">No sessions yet</h3>
-            <p className="text-gray-500 mb-4">Start building your course by adding your first session</p>
-            <Button onClick={() => setShowSessionDialog(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Your First Session
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Video className="w-8 h-8 text-white" />
+            </div>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">Ready to build your course?</h3>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              Start creating engaging learning experiences by adding your first session. 
+              Each session can contain videos, quizzes, exercises, and more!
+            </p>
+            <Button 
+              onClick={() => setShowSessionDialog(true)}
+              size="lg"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+            >
+              <Zap className="w-5 h-5 mr-2" />
+              Create Your First Session
             </Button>
+            <div className="mt-6 flex items-center justify-center space-x-6 text-sm text-gray-500">
+              <div className="flex items-center space-x-1">
+                <Target className="w-4 h-4" />
+                <span>Structured Learning</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <Users className="w-4 h-4" />
+                <span>Interactive Content</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <CheckCircle className="w-4 h-4" />
+                <span>Easy Management</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
       ) : (
+        /* ✅ IMPROVED: Session list with better styling */
         <DragDropContext onDragEnd={handleSessionsReorder}>
           <Droppable droppableId="sessions">
             {(provided) => (
@@ -421,21 +457,23 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
                       <Card 
                         ref={provided.innerRef}
                         {...provided.draggableProps}
-                        className={`${snapshot.isDragging ? 'shadow-lg' : ''}`}
+                        className={`transition-all duration-200 hover:shadow-lg ${
+                          snapshot.isDragging ? 'shadow-xl ring-2 ring-blue-500 ring-opacity-50' : ''
+                        }`}
                       >
                         <CardHeader className="pb-4">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
-                              <div {...provided.dragHandleProps}>
+                              <div {...provided.dragHandleProps} className="p-1 hover:bg-gray-100 rounded transition-colors">
                                 <GripVertical className="w-5 h-5 text-gray-400 cursor-move" />
                               </div>
                               <div>
                                 <div className="flex items-center space-x-2">
-                                  <h3 className="text-lg font-semibold">
+                                  <h3 className="text-lg font-semibold text-gray-800">
                                     Session {session.order}: {session.title}
                                   </h3>
                                   {session.isFree && (
-                                    <Badge variant="outline" className="bg-green-50 text-green-700">
+                                    <Badge className="bg-green-100 text-green-800 border-green-300">
                                       Free Preview
                                     </Badge>
                                   )}
@@ -444,8 +482,14 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
                                   <p className="text-sm text-gray-600 mt-1">{session.description}</p>
                                 )}
                                 <div className="flex items-center space-x-4 text-sm text-gray-500 mt-2">
-                                  <span>{session.contents.length} contents</span>
-                                  <span>{session.contents.reduce((total, content) => total + (content.duration || 0), 0)}min</span>
+                                  <span className="flex items-center space-x-1">
+                                    <FileText className="w-3 h-3" />
+                                    <span>{session.contents.length} contents</span>
+                                  </span>
+                                  <span className="flex items-center space-x-1">
+                                    <Clock className="w-3 h-3" />
+                                    <span>{session.contents.reduce((total, content) => total + (content.duration || 0), 0)}min</span>
+                                  </span>
                                 </div>
                               </div>
                             </div>
@@ -454,6 +498,7 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleEditSession(session)}
+                                className="hover:bg-blue-50 hover:border-blue-300 transition-colors"
                               >
                                 <Edit className="w-4 h-4" />
                               </Button>
@@ -461,6 +506,7 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
                                 variant="outline"
                                 size="sm"
                                 onClick={() => handleDeleteSession(session.id)}
+                                className="hover:bg-red-50 hover:border-red-300 text-red-600 transition-colors"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
@@ -473,26 +519,31 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
                             {session.contents.map((content) => {
                               const ContentIcon = CONTENT_ICONS[content.type]
                               return (
-                                <div key={content.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div key={content.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
                                   <div className="flex items-center space-x-3">
-                                    <ContentIcon className="w-4 h-4 text-gray-500" />
+                                    <div className="w-8 h-8 bg-white rounded-lg border border-gray-300 flex items-center justify-center">
+                                      <ContentIcon className="w-4 h-4 text-gray-600" />
+                                    </div>
                                     <div>
                                       <div className="flex items-center space-x-2">
-                                        <span className="font-medium">{content.title}</span>
-                                        <Badge variant="outline" className="text-xs">
+                                        <span className="font-medium text-gray-800">{content.title}</span>
+                                        <Badge variant="outline" className="text-xs bg-white">
                                           {content.type.replace('_', ' ')}
                                         </Badge>
-                                        {content.isFree && <Eye className="w-3 h-3 text-green-600" />}
-                                        {!content.isFree && <Lock className="w-3 h-3 text-gray-400" />}
+                                        {content.isFree ? (
+                                          <Eye className="w-3 h-3 text-green-600" />
+                                        ) : (
+                                          <Lock className="w-3 h-3 text-gray-400" />
+                                        )}
                                       </div>
                                       {content.description && (
-                                        <p className="text-sm text-gray-600">{content.description}</p>
+                                        <p className="text-sm text-gray-600 mt-1">{content.description}</p>
                                       )}
-                                      <div className="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                                      <div className="flex items-center space-x-3 text-xs text-gray-500 mt-2">
                                         {content.duration && (
-                                          <span className="flex items-center">
-                                            <Clock className="w-3 h-3 mr-1" />
-                                            {content.duration}min
+                                          <span className="flex items-center space-x-1">
+                                            <Clock className="w-3 h-3" />
+                                            <span>{content.duration}min</span>
                                           </span>
                                         )}
                                         {content.youtubeUrl && (
@@ -510,11 +561,12 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="flex items-center space-x-2">
+                                  <div className="flex items-center space-x-1">
                                     <Button
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => handleEditContent(session.id, content)}
+                                      className="hover:bg-blue-50"
                                     >
                                       <Edit className="w-4 h-4" />
                                     </Button>
@@ -522,6 +574,7 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => handleDeleteContent(session.id, content.id)}
+                                      className="hover:bg-red-50 text-red-600"
                                     >
                                       <Trash2 className="w-4 h-4" />
                                     </Button>
@@ -530,12 +583,12 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
                               )
                             })}
                             
-                            {/* Add Content Button */}
+                            {/* ✅ IMPROVED: Add Content Button */}
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => handleAddContent(session.id)}
-                              className="w-full"
+                              className="w-full border-dashed border-2 border-gray-300 hover:border-blue-400 hover:bg-blue-50 transition-all duration-200"
                             >
                               <Plus className="w-4 h-4 mr-2" />
                               Add Content to Session
@@ -553,47 +606,59 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
         </DragDropContext>
       )}
 
-      {/* Add Session Dialog */}
+      {/* ✅ IMPROVED: Session Dialog with better size and styling */}
       <Dialog open={showSessionDialog} onOpenChange={setShowSessionDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-xl font-semibold">
               {editingSession ? 'Edit Session' : 'Add New Session'}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-6 py-4">
             <div className="space-y-2">
-              <Label htmlFor="sessionTitle">Session Title *</Label>
+              <Label htmlFor="sessionTitle" className="text-sm font-medium">Session Title *</Label>
               <Input
                 id="sessionTitle"
                 placeholder="e.g., Introduction to Russian Alphabet"
                 value={newSessionTitle}
                 onChange={(e) => setNewSessionTitle(e.target.value)}
+                className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="sessionDescription">Session Description</Label>
+              <Label htmlFor="sessionDescription" className="text-sm font-medium">Session Description</Label>
               <Textarea
                 id="sessionDescription"
                 placeholder="Describe what this session covers..."
                 value={newSessionDescription}
                 onChange={(e) => setNewSessionDescription(e.target.value)}
                 rows={3}
+                className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="sessionFree">Make this session free preview</Label>
+            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+              <div>
+                <Label htmlFor="sessionFree" className="text-sm font-medium">Make this session free preview</Label>
+                <p className="text-xs text-gray-600 mt-1">Free sessions help attract students to your course</p>
+              </div>
               <Switch
                 id="sessionFree"
                 checked={newSessionIsFree}
                 onCheckedChange={setNewSessionIsFree}
               />
             </div>
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={() => setShowSessionDialog(false)}>
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowSessionDialog(false)}
+                className="hover:bg-gray-50"
+              >
                 Cancel
               </Button>
-              <Button onClick={editingSession ? handleUpdateSession : handleAddSession}>
+              <Button 
+                onClick={editingSession ? handleUpdateSession : handleAddSession}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
                 {editingSession ? 'Update Session' : 'Add Session'}
               </Button>
             </div>
@@ -601,39 +666,40 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
         </DialogContent>
       </Dialog>
 
-      {/* Add Content Dialog */}
+      {/* ✅ IMPROVED: Content Dialog with better organization */}
       <Dialog open={showContentDialog} onOpenChange={setShowContentDialog}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>
+            <DialogTitle className="text-xl font-semibold">
               {editingContent ? 'Edit Content' : 'Add Content'}
             </DialogTitle>
           </DialogHeader>
           
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="basic">Basic Info</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="basic">Basic Information</TabsTrigger>
               <TabsTrigger value="details">Content Details</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="basic" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <TabsContent value="basic" className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="contentTitle">Content Title *</Label>
+                  <Label htmlFor="contentTitle" className="text-sm font-medium">Content Title *</Label>
                   <Input
                     id="contentTitle"
                     placeholder="e.g., Introduction Video"
                     value={contentForm.title || ''}
                     onChange={(e) => setContentForm(prev => ({ ...prev, title: e.target.value }))}
+                    className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="contentType">Content Type *</Label>
+                  <Label htmlFor="contentType" className="text-sm font-medium">Content Type *</Label>
                   <Select 
                     value={contentForm.type} 
                     onValueChange={(value) => setContentForm(prev => ({ ...prev, type: value as SessionContent['type'] }))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="transition-all duration-200 focus:ring-2 focus:ring-blue-500">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -651,29 +717,34 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="contentDescription">Description</Label>
+                <Label htmlFor="contentDescription" className="text-sm font-medium">Description</Label>
                 <Textarea
                   id="contentDescription"
                   placeholder="Describe this content..."
                   value={contentForm.description || ''}
                   onChange={(e) => setContentForm(prev => ({ ...prev, description: e.target.value }))}
                   rows={3}
+                  className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="contentDuration">Duration (minutes)</Label>
+                  <Label htmlFor="contentDuration" className="text-sm font-medium">Duration (minutes)</Label>
                   <Input
                     id="contentDuration"
                     type="number"
                     min="1"
                     value={contentForm.duration || ''}
                     onChange={(e) => setContentForm(prev => ({ ...prev, duration: parseInt(e.target.value) || 0 }))}
+                    className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="contentFree">Free preview content</Label>
+                <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+                  <div>
+                    <Label htmlFor="contentFree" className="text-sm font-medium">Free preview content</Label>
+                    <p className="text-xs text-gray-600 mt-1">Allow free access to this content</p>
+                  </div>
                   <Switch
                     id="contentFree"
                     checked={contentForm.isFree || false}
@@ -683,109 +754,125 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
               </div>
             </TabsContent>
 
-            <TabsContent value="details" className="space-y-4">
+            <TabsContent value="details" className="space-y-6">
               {contentForm.type === 'VIDEO' && (
                 <div className="space-y-2">
-                  <Label htmlFor="youtubeUrl">YouTube URL *</Label>
+                  <Label htmlFor="youtubeUrl" className="text-sm font-medium">YouTube URL *</Label>
                   <Input
                     id="youtubeUrl"
                     placeholder="https://youtube.com/watch?v=..."
                     value={contentForm.youtubeUrl || ''}
                     onChange={(e) => setContentForm(prev => ({ ...prev, youtubeUrl: e.target.value }))}
+                    className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               )}
 
               {contentForm.type === 'LIVE_SESSION' && (
                 <div className="space-y-2">
-                  <Label htmlFor="zoomLink">Zoom Meeting Link *</Label>
+                  <Label htmlFor="zoomLink" className="text-sm font-medium">Zoom Meeting Link *</Label>
                   <Input
                     id="zoomLink"
                     placeholder="https://zoom.us/j/..."
                     value={contentForm.zoomLink || ''}
                     onChange={(e) => setContentForm(prev => ({ ...prev, zoomLink: e.target.value }))}
+                    className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               )}
 
               {contentForm.type === 'EXERCISE' && (
                 <div className="space-y-2">
-                  <Label htmlFor="exerciseContent">Exercise Content *</Label>
+                  <Label htmlFor="exerciseContent" className="text-sm font-medium">Exercise Content *</Label>
                   <Textarea
                     id="exerciseContent"
                     placeholder="Enter exercise instructions, questions, or content..."
                     value={contentForm.exerciseContent || ''}
                     onChange={(e) => setContentForm(prev => ({ ...prev, exerciseContent: e.target.value }))}
                     rows={6}
+                    className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               )}
 
               {(contentForm.type === 'DOCUMENT' || contentForm.type === 'AUDIO') && (
                 <div className="space-y-2">
-                  <Label htmlFor="materialUrl">File URL *</Label>
+                  <Label htmlFor="materialUrl" className="text-sm font-medium">File URL *</Label>
                   <Input
                     id="materialUrl"
                     placeholder="https://example.com/file.pdf"
                     value={contentForm.materialUrl || ''}
                     onChange={(e) => setContentForm(prev => ({ ...prev, materialUrl: e.target.value }))}
+                    className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               )}
 
               {contentForm.type === 'QUIZ' && (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold">Quiz Questions</h4>
-                    <Badge variant="outline">{quizQuestions.length} questions</Badge>
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg">
+                    <div>
+                      <h4 className="font-semibold text-purple-900">Quiz Questions</h4>
+                      <p className="text-sm text-purple-700">Create interactive questions for your students</p>
+                    </div>
+                    <Badge className="bg-purple-100 text-purple-800">{quizQuestions.length} questions</Badge>
                   </div>
 
                   {/* Quiz Questions List */}
-                  <ScrollArea className="h-60 border rounded-lg p-4">
-                    {quizQuestions.map((question, index) => (
-                      <div key={question.id} className="mb-4 p-3 bg-gray-50 rounded-lg">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="font-medium">Q{index + 1}: {question.question}</p>
-                            <Badge variant="outline" className="text-xs mt-1">
-                              {question.type.replace('_', ' ')}
-                            </Badge>
-                            {question.options && (
-                              <div className="mt-2 text-sm text-gray-600">
-                                {question.options.map((option, optIndex) => (
-                                  <div key={optIndex} className={`${optIndex === question.correctAnswer ? 'font-medium text-green-600' : ''}`}>
-                                    {String.fromCharCode(65 + optIndex)}. {option}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setQuizQuestions(quizQuestions.filter(q => q.id !== question.id))}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
+                  <ScrollArea className="h-60 border rounded-lg p-4 bg-gray-50">
+                    {quizQuestions.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500">
+                        <FileQuestion className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+                        <p>No questions added yet</p>
                       </div>
-                    ))}
+                    ) : (
+                      quizQuestions.map((question, index) => (
+                        <div key={question.id} className="mb-4 p-4 bg-white rounded-lg border">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="font-medium text-gray-800">Q{index + 1}: {question.question}</p>
+                              <Badge variant="outline" className="text-xs mt-2 bg-blue-50 text-blue-700">
+                                {question.type.replace('_', ' ')}
+                              </Badge>
+                              {question.options && (
+                                <div className="mt-3 text-sm text-gray-600">
+                                  {question.options.map((option, optIndex) => (
+                                    <div key={optIndex} className={`py-1 ${optIndex === question.correctAnswer ? 'font-medium text-green-600' : ''}`}>
+                                      {String.fromCharCode(65 + optIndex)}. {option}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setQuizQuestions(quizQuestions.filter(q => q.id !== question.id))}
+                              className="hover:bg-red-50 text-red-600"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </ScrollArea>
 
                   {/* Add Question Form */}
-                  <div className="space-y-3 p-4 border rounded-lg">
-                    <h5 className="font-medium">Add New Question</h5>
-                    <div className="space-y-2">
+                  <div className="space-y-4 p-4 border rounded-lg bg-white">
+                    <h5 className="font-medium text-gray-800">Add New Question</h5>
+                    <div className="space-y-4">
                       <Input
                         placeholder="Enter question..."
                         value={currentQuestion.question || ''}
                         onChange={(e) => setCurrentQuestion(prev => ({ ...prev, question: e.target.value }))}
+                        className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                       />
                       <Select 
                         value={currentQuestion.type} 
                         onValueChange={(value) => setCurrentQuestion(prev => ({ ...prev, type: value as QuizQuestion['type'] }))}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="transition-all duration-200 focus:ring-2 focus:ring-blue-500">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -798,8 +885,8 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
 
                       {/* Multiple Choice Options */}
                       {currentQuestion.type === 'multiple_choice' && (
-                        <div className="space-y-2">
-                          <Label>Answer Options</Label>
+                        <div className="space-y-3">
+                          <Label className="text-sm font-medium">Answer Options</Label>
                           {currentQuestion.options?.map((option, index) => (
                             <div key={index} className="flex items-center space-x-2">
                               <Input
@@ -810,11 +897,13 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
                                   newOptions[index] = e.target.value
                                   setCurrentQuestion(prev => ({ ...prev, options: newOptions }))
                                 }}
+                                className="flex-1"
                               />
                               <Button
                                 variant={currentQuestion.correctAnswer === index ? "default" : "outline"}
                                 size="sm"
                                 onClick={() => setCurrentQuestion(prev => ({ ...prev, correctAnswer: index }))}
+                                className={currentQuestion.correctAnswer === index ? "bg-green-600 hover:bg-green-700" : ""}
                               >
                                 {currentQuestion.correctAnswer === index ? <CheckCircle className="w-4 h-4" /> : 'Correct'}
                               </Button>
@@ -826,17 +915,19 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
                       {/* True/False */}
                       {currentQuestion.type === 'true_false' && (
                         <div className="space-y-2">
-                          <Label>Correct Answer</Label>
+                          <Label className="text-sm font-medium">Correct Answer</Label>
                           <div className="flex space-x-2">
                             <Button
                               variant={currentQuestion.correctAnswer === 'true' ? "default" : "outline"}
                               onClick={() => setCurrentQuestion(prev => ({ ...prev, correctAnswer: 'true' }))}
+                              className={currentQuestion.correctAnswer === 'true' ? "bg-green-600 hover:bg-green-700" : ""}
                             >
                               True
                             </Button>
                             <Button
                               variant={currentQuestion.correctAnswer === 'false' ? "default" : "outline"}
                               onClick={() => setCurrentQuestion(prev => ({ ...prev, correctAnswer: 'false' }))}
+                              className={currentQuestion.correctAnswer === 'false' ? "bg-green-600 hover:bg-green-700" : ""}
                             >
                               False
                             </Button>
@@ -847,27 +938,33 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
                       {/* Short Answer */}
                       {currentQuestion.type === 'short_answer' && (
                         <div className="space-y-2">
-                          <Label>Sample Correct Answer</Label>
+                          <Label className="text-sm font-medium">Sample Correct Answer</Label>
                           <Input
                             placeholder="Enter a sample correct answer..."
                             value={currentQuestion.correctAnswer as string || ''}
                             onChange={(e) => setCurrentQuestion(prev => ({ ...prev, correctAnswer: e.target.value }))}
+                            className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                           />
                         </div>
                       )}
 
                       {/* Explanation */}
                       <div className="space-y-2">
-                        <Label>Explanation (Optional)</Label>
+                        <Label className="text-sm font-medium">Explanation (Optional)</Label>
                         <Textarea
                           placeholder="Explain the correct answer..."
                           value={currentQuestion.explanation || ''}
                           onChange={(e) => setCurrentQuestion(prev => ({ ...prev, explanation: e.target.value }))}
                           rows={2}
+                          className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
 
-                      <Button onClick={handleAddQuizQuestion} size="sm">
+                      <Button 
+                        onClick={handleAddQuizQuestion} 
+                        size="sm"
+                        className="bg-purple-600 hover:bg-purple-700"
+                      >
                         <Plus className="w-4 h-4 mr-2" />
                         Add Question
                       </Button>
@@ -878,22 +975,29 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
             </TabsContent>
           </Tabs>
 
-          <div className="flex justify-end space-x-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => setShowContentDialog(false)}>
+          <div className="flex justify-end space-x-3 pt-6 border-t">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowContentDialog(false)}
+              className="hover:bg-gray-50"
+            >
               Cancel
             </Button>
-            <Button onClick={handleSaveContent}>
+            <Button 
+              onClick={handleSaveContent}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
               {editingContent ? 'Update Content' : 'Add Content'}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Free Content Limit Warning */}
+      {/* ✅ IMPROVED: Warning alert with better styling */}
       {getFreeContentCount() > freeContentLimit && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
+        <Alert className="border-amber-200 bg-amber-50">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-700">
             <strong>Warning:</strong> You have {getFreeContentCount()} free content items, 
             but your course limit is set to {freeContentLimit}. 
             Consider adjusting your free content settings or course pricing configuration.
@@ -901,32 +1005,39 @@ export default function SessionBuilder({ sessions, onSessionsChange, freeContent
         </Alert>
       )}
 
-      {/* Content Guidelines */}
-      <Card>
+      {/* ✅ IMPROVED: Guidelines card with better visual design */}
+      <Card className="border-green-200 bg-green-50">
         <CardHeader>
-          <CardTitle className="text-sm">Content Guidelines</CardTitle>
+          <CardTitle className="text-lg font-semibold text-green-900 flex items-center space-x-2">
+            <CheckCircle className="w-5 h-5" />
+            <span>Content Creation Guidelines</span>
+          </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <div className="text-sm text-gray-600 space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-green-800">
             <div className="flex items-start space-x-2">
-              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
               <span>Each session should have 3-5 content items for optimal learning experience</span>
             </div>
             <div className="flex items-start space-x-2">
-              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
               <span>Include a mix of videos, quizzes, and exercises to keep students engaged</span>
             </div>
             <div className="flex items-start space-x-2">
-              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
               <span>Mark important introductory content as "free preview" to attract students</span>
             </div>
             <div className="flex items-start space-x-2">
-              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
               <span>Videos should be 5-15 minutes long for better attention span</span>
             </div>
             <div className="flex items-start space-x-2">
-              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5" />
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
               <span>Include quizzes after theory content to reinforce learning</span>
+            </div>
+            <div className="flex items-start space-x-2">
+              <CheckCircle className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
+              <span>Use clear, descriptive titles for all content items</span>
             </div>
           </div>
         </CardContent>
