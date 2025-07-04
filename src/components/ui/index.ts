@@ -6,11 +6,13 @@ export { default as Avatar } from './avatar'
 export { default as Badge } from './badge'
 export { default as Button } from './button'
 export { default as Card } from './card'
+export { default as Checkbox } from './checkbox'
 export { default as Dialog } from './dialog'
 export { default as Input } from './input'
 export { default as Label } from './label'
 export { default as Modal } from './modal'
 export { default as Progress } from './progress'
+export { default as RadioGroup } from './radio-group'
 export { default as ScrollArea } from './scroll-area'
 export { default as Select } from './select'
 export { default as Separator } from './separator'
@@ -32,6 +34,8 @@ export {
 } from './dialog'
 
 export { AlertDescription } from './alert'
+
+export { RadioGroupItem } from './radio-group'
 
 export { SelectContent, SelectItem, SelectTrigger, SelectValue } from './select'
 

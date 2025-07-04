@@ -1,0 +1,269 @@
+.
+├── eslint.config.mjs
+├── middleware.ts
+├── next-env.d.ts
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── postcss.config.mjs
+├── prisma
+│   ├── schema.prisma
+│   └── seed.ts
+├── public
+│   ├── favicon.ico
+│   ├── file.svg
+│   ├── globe.svg
+│   ├── logo.png
+│   ├── next.svg
+│   ├── sample-pdf
+│   │   └── contoh.pdf
+│   ├── vercel.svg
+│   └── window.svg
+├── README.md
+├── src
+│   ├── app
+│   │   ├── admin
+│   │   │   └── course-review
+│   │   │       └── page.tsx
+│   │   ├── api
+│   │   │   ├── auth
+│   │   │   │   ├── login
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── logout
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── me
+│   │   │   │   │   └── route.ts
+│   │   │   │   └── register
+│   │   │   │       └── route.ts
+│   │   │   ├── courses
+│   │   │   │   ├── [id]
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── admin
+│   │   │   │   │   └── route.ts
+│   │   │   │   ├── route.ts
+│   │   │   │   └── submit-review
+│   │   │   │       └── route.ts
+│   │   │   ├── files
+│   │   │   │   └── upload
+│   │   │   │       └── route.ts
+│   │   │   └── payments
+│   │   │       ├── create
+│   │   │       │   └── route.ts
+│   │   │       └── verify
+│   │   │           └── route.ts
+│   │   ├── auth
+│   │   │   ├── forgot-password
+│   │   │   │   └── page.tsx
+│   │   │   ├── login
+│   │   │   │   └── page.tsx
+│   │   │   ├── register
+│   │   │   │   └── page.tsx
+│   │   │   └── reset-password
+│   │   │       └── page.tsx
+│   │   ├── course-builder
+│   │   │   └── page.tsx
+│   │   ├── courses
+│   │   │   ├── [id]
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   ├── dashboard
+│   │   │   ├── admin
+│   │   │   │   └── page.tsx
+│   │   │   ├── instructor
+│   │   │   │   ├── create
+│   │   │   │   │   └── page.tx
+│   │   │   │   └── page.tsx
+│   │   │   └── student
+│   │   │       └── page.tsx
+│   │   ├── instructor
+│   │   │   └── page.tsx
+│   │   ├── layout.tsx
+│   │   ├── my-courses
+│   │   │   └── page.tsx
+│   │   ├── page.tsx
+│   │   └── payments
+│   │       └── page.tsx
+│   ├── components
+│   │   ├── content
+│   │   │   ├── components
+│   │   │   │   ├── content-builder.tsx
+│   │   │   │   ├── content-management
+│   │   │   │   │   ├── content-card.tsx
+│   │   │   │   │   ├── content-form.tsx
+│   │   │   │   │   └── content-list.tsx
+│   │   │   │   └── content-types
+│   │   │   │       ├── assessment
+│   │   │   │       ├── collaboration
+│   │   │   │       ├── general
+│   │   │   │       ├── interactive
+│   │   │   │       ├── programming
+│   │   │   │       └── specialized
+│   │   │   ├── hooks
+│   │   │   │   ├── use-content-crud.ts
+│   │   │   │   ├── use-content-type-handler.ts
+│   │   │   │   └── use-content-validation.ts
+│   │   │   ├── index.ts
+│   │   │   └── types
+│   │   │       └── index.ts
+│   │   ├── course
+│   │   │   ├── basic-info-form.tsx
+│   │   │   ├── course-card.tsx
+│   │   │   ├── course-preview.tsx
+│   │   │   ├── file-list.tsx
+│   │   │   ├── pricing-form.tsx
+│   │   │   └── session-builder.tsx
+│   │   ├── forms
+│   │   │   ├── course-form.tsx
+│   │   │   ├── file-upload-form.tsx
+│   │   │   ├── login-form.tsx
+│   │   │   └── register-form.tsx
+│   │   ├── home
+│   │   │   ├── about.tsx
+│   │   │   ├── cta-section.tsx
+│   │   │   ├── features.tsx
+│   │   │   ├── hero.tsx
+│   │   │   ├── hooks
+│   │   │   │   └── use-auth.tsx
+│   │   │   └── popular-courses.tsx
+│   │   ├── layout
+│   │   │   ├── auth-layout.tsx
+│   │   │   ├── dashboard-layout.tsx
+│   │   │   ├── dashboard-navbar.tsx
+│   │   │   ├── footer.tsx
+│   │   │   ├── navbar.tsx
+│   │   │   └── sidebar.tsx
+│   │   ├── learning
+│   │   │   ├── components
+│   │   │   │   ├── assessment
+│   │   │   │   │   ├── exercise-player.tsx
+│   │   │   │   │   ├── quiz-player.tsx
+│   │   │   │   │   └── submission-viewer.tsx
+│   │   │   │   ├── course-player.tsx
+│   │   │   │   ├── navigation
+│   │   │   │   │   ├── content-navigation.tsx
+│   │   │   │   │   ├── course-navigation.tsx
+│   │   │   │   │   └── session-navigation.tsx
+│   │   │   │   └── progress-tracker.tsx
+│   │   │   ├── hooks
+│   │   │   │   ├── use-assessment.ts
+│   │   │   │   ├── use-course-player.ts
+│   │   │   │   └── use-learning-progress.ts
+│   │   │   ├── index.ts
+│   │   │   └── types
+│   │   │       └── index.ts
+│   │   ├── quiz
+│   │   │   ├── builder
+│   │   │   │   ├── checkbox-builder.tsx
+│   │   │   │   ├── code-input-builder.tsx
+│   │   │   │   ├── drag-drop-builder.tsx
+│   │   │   │   ├── essay-builder.tsx
+│   │   │   │   ├── fill-blank-builder.tsx
+│   │   │   │   ├── matching-builder.tsx
+│   │   │   │   ├── mcq-builder.tsx
+│   │   │   │   └── true-false-builder.tsx
+│   │   │   ├── components
+│   │   │   │   ├── quiz-checkbox.tsx
+│   │   │   │   ├── quiz-code-input.tsx
+│   │   │   │   ├── quiz-drag-drop.tsx
+│   │   │   │   ├── quiz-essay.tsx
+│   │   │   │   ├── quiz-fill-blank.tsx
+│   │   │   │   ├── quiz-matching.tsx
+│   │   │   │   ├── quiz-mcq.tsx
+│   │   │   │   └── quiz-true-false.tsx
+│   │   │   ├── index.ts
+│   │   │   ├── quiz-builder.tsx
+│   │   │   ├── quiz-renderer.tsx
+│   │   │   ├── shared
+│   │   │   │   ├── option-editor.tsx
+│   │   │   │   ├── question-navigation.tsx
+│   │   │   │   ├── quiz-progress.tsx
+│   │   │   │   ├── quiz-result.tsx
+│   │   │   │   └── quiz-timer.tsx
+│   │   │   └── types
+│   │   │       └── index.ts
+│   │   ├── session
+│   │   │   ├── components
+│   │   │   │   ├── session-builder.tsx
+│   │   │   │   ├── session-management
+│   │   │   │   │   ├── session-card.tsx
+│   │   │   │   │   ├── session-form.tsx
+│   │   │   │   │   └── session-list.tsx
+│   │   │   │   └── session-statistics
+│   │   │   │       └── session-stats.tsx
+│   │   │   ├── hooks
+│   │   │   │   ├── use-session-crud.ts
+│   │   │   │   └── use-session-reorder.ts
+│   │   │   ├── index.ts
+│   │   │   └── types
+│   │   │       └── index.ts
+│   │   ├── shared
+│   │   │   ├── components
+│   │   │   │   ├── forms
+│   │   │   │   │   ├── form-field.tsx
+│   │   │   │   │   ├── form-validation.tsx
+│   │   │   │   │   └── form-wizard.tsx
+│   │   │   │   ├── guidelines
+│   │   │   │   │   ├── best-practices.tsx
+│   │   │   │   │   ├── content-guidelines.tsx
+│   │   │   │   │   └── course-guidelines.tsx
+│   │   │   │   ├── layout
+│   │   │   │   │   ├── page-footer.tsx
+│   │   │   │   │   ├── page-header.tsx
+│   │   │   │   │   └── sidebar.tsx
+│   │   │   │   ├── media
+│   │   │   │   │   ├── audio-player.tsx
+│   │   │   │   │   ├── image-viewer.tsx
+│   │   │   │   │   └── video-player.tsx
+│   │   │   │   └── statistics
+│   │   │   │       ├── analytics-chart.tsx
+│   │   │   │       ├── progress-bar.tsx
+│   │   │   │       └── stats-card.tsx
+│   │   │   ├── hooks
+│   │   │   │   ├── use-analytics.ts
+│   │   │   │   ├── use-file-upload.ts
+│   │   │   │   └── use-validation.ts
+│   │   │   ├── index.ts
+│   │   │   ├── types
+│   │   │   │   └── index.ts
+│   │   │   └── utils
+│   │   │       ├── formatting.ts
+│   │   │       ├── helpers.ts
+│   │   │       └── validation.ts
+│   │   └── ui
+│   │       ├── alert.tsx
+│   │       ├── avatar.tsx
+│   │       ├── badge.tsx
+│   │       ├── button.tsx
+│   │       ├── card.tsx
+│   │       ├── dialog.tsx
+│   │       ├── index.ts
+│   │       ├── input.tsx
+│   │       ├── label.tsx
+│   │       ├── modal.tsx
+│   │       ├── progress.tsx
+│   │       ├── scroll-area.tsx
+│   │       ├── select.tsx
+│   │       ├── separator.tsx
+│   │       ├── slider.tsx
+│   │       ├── switch.tsx
+│   │       ├── tabs.tsx
+│   │       └── textarea.tsx
+│   ├── context
+│   │   ├── auth-context.tsx
+│   │   └── modal-context.tsx
+│   ├── hooks
+│   │   ├── use-auth.tsx
+│   │   ├── use-courses.tsx
+│   │   └── use-modal.tsx
+│   ├── lib
+│   │   ├── auth.ts
+│   │   ├── db.ts
+│   │   ├── upload.ts
+│   │   ├── utils.ts
+│   │   └── youtube.ts
+│   └── styles
+│       └── globals.css
+├── struktur-proyek.txt
+└── tsconfig.json
+
+89 directories, 178 files
