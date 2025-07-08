@@ -22,7 +22,7 @@ import {
 } from '@/components/ui'
 
 // Feature Components
-import { QuizProgress } from '../shared/quiz-progress'
+import { QuizProgress } from '@/components/quiz'
 
 // Icons
 import { 

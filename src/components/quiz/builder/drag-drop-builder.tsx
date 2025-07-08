@@ -1,597 +1,1351 @@
 // File: src/components/quiz/builder/drag-drop-builder.tsx
 
-'use client'
+/**
+ * =================================================================
+ * 🔧 DRAG DROP BUILDER COMPONENT - Migrated to @dnd-kit
+ * =================================================================
+ * Drag & Drop Question builder with sortable items
+ * Created: July 2025
+ * Phase: 4 - Quiz Builders
+ * =================================================================
+ */
 
-import { useState } from 'react'
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle,
+'use client';
+
+import React, { useState, useCallback, useMemo } from 'react';
+
+// ✅ FIXED: UI Components dari barrel imports
+import {
   Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
   Input,
-  Textarea,
   Label,
-  Alert,
-  AlertDescription,
-  Badge,
-  Separator,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue
-} from '@/components/ui'
-import { 
-  Plus, 
-  Trash2, 
-  Move, 
-  AlertCircle, 
-  CheckCircle,
+  SelectValue,
+  Textarea,
+  Badge,
+  Alert,
+  AlertDescription,
+  Switch,
+  Separator,
+} from '@/components/ui';
+
+// Icons
+import {
+  Plus,
+  Trash2,
   GripVertical,
+  Save,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  Move,
+  Target,
   ArrowUpDown,
   Shuffle,
-  Eye,
   RotateCcw,
-  Target
-} from 'lucide-react'
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
+  CheckCircle,
+  Package,
+} from 'lucide-react';
+
+// ✅ NEW: @dnd-kit imports
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  DropAnimation,
+  UniqueIdentifier,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+// Form & Validation
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { toast } from 'sonner';
+
+// Local Utilities
+import { cn } from '@/lib/utils';
+
+// Types
+import type { DragDropQuestion, BuilderComponentProps } from '../types';
+
+// =================================================================
+// 🎯 INTERFACES & TYPES
+// =================================================================
+
+interface DragDropBuilderProps extends BuilderComponentProps<DragDropQuestion> {
+  className?: string;
+}
 
 interface DragDropItem {
-  id: string
-  content: string
-  correctPosition: number
+  id: string;
+  text: string;
+  image?: string;
+  correctPosition: number;
 }
 
-interface DragDropQuestion {
-  id: string
-  type: 'drag_drop'
-  question: string
-  items: DragDropItem[]
-  instructions?: string
-  points?: number
-  shuffleItems?: boolean
-  allowPartialCredit?: boolean
+interface DropZone {
+  id: string;
+  label: string;
+  description?: string;
+  capacity?: number;
+  hint?: string;
+  required?: boolean;
 }
 
-interface DragDropBuilderProps {
-  initialData?: DragDropQuestion
-  onSave: (question: DragDropQuestion) => void
-  onCancel: () => void
+interface DragDropFormData {
+  title: string;
+  description?: string;
+  items: DragDropItem[];
+  zones: DropZone[];
+  correctAnswer: Record<string, string[]>; // zoneId -> itemIds[]
+  explanation?: string;
+  points: number;
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  timeLimit?: number;
+  hints?: string[];
+  shuffleItems?: boolean;
+  allowMultiple?: boolean;
+  showZoneHints?: boolean;
+  showExplanationAfter?: boolean;
+  tags?: string[];
 }
 
-export default function DragDropBuilder({ 
-  initialData, 
-  onSave, 
-  onCancel 
-}: DragDropBuilderProps) {
-  const [question, setQuestion] = useState(initialData?.question || '')
-  const [instructions, setInstructions] = useState(
-    initialData?.instructions || 'Drag and drop the items below to arrange them in the correct order.'
-  )
-  const [points, setPoints] = useState(initialData?.points || 1)
-  const [shuffleItems, setShuffleItems] = useState(initialData?.shuffleItems ?? true)
-  const [allowPartialCredit, setAllowPartialCredit] = useState(initialData?.allowPartialCredit ?? false)
-  const [items, setItems] = useState<DragDropItem[]>(
-    initialData?.items || [
-      { id: '1', content: '', correctPosition: 1 },
-      { id: '2', content: '', correctPosition: 2 },
-      { id: '3', content: '', correctPosition: 3 }
-    ]
-  )
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [previewMode, setPreviewMode] = useState(false)
-  const [previewItems, setPreviewItems] = useState<DragDropItem[]>([])
+interface ItemFormProps {
+  item: DragDropItem;
+  index: number;
+  onUpdate: (field: keyof DragDropItem, value: string | number) => void;
+  onDelete: () => void;
+  disabled?: boolean;
+}
 
-  const addItem = () => {
-    const newItem: DragDropItem = {
-      id: Date.now().toString(),
-      content: '',
-      correctPosition: items.length + 1
-    }
-    setItems([...items, newItem])
+interface SortableItemFormProps extends ItemFormProps {
+  id: string;
+}
+
+interface ZoneFormProps {
+  zone: DropZone;
+  index: number;
+  onUpdate: (field: keyof DropZone, value: string | number | boolean) => void;
+  onDelete: () => void;
+  disabled?: boolean;
+}
+
+interface PreviewModeProps {
+  items: DragDropItem[];
+  zones: DropZone[];
+  correctAnswer: Record<string, string[]>;
+  onReset: () => void;
+}
+
+// =================================================================
+// 🎯 VALIDATION SCHEMA
+// =================================================================
+
+const dragDropQuestionSchema = z.object({
+  title: z.string().min(10, 'Title must be at least 10 characters'),
+  description: z.string().optional(),
+  items: z.array(z.object({
+    id: z.string(),
+    text: z.string().min(1, 'Item text is required'),
+    image: z.string().optional(),
+    correctPosition: z.number().min(0),
+  })).min(2, 'At least 2 items are required').max(20, 'Maximum 20 items allowed'),
+  zones: z.array(z.object({
+    id: z.string(),
+    label: z.string().min(1, 'Zone label is required'),
+    description: z.string().optional(),
+    capacity: z.number().optional(),
+    hint: z.string().optional(),
+    required: z.boolean().optional(),
+  })).min(1, 'At least 1 zone is required').max(6, 'Maximum 6 zones allowed'),
+  correctAnswer: z.record(z.array(z.string())),
+  explanation: z.string().optional(),
+  points: z.number().min(1).max(100),
+  difficulty: z.enum(['EASY', 'MEDIUM', 'HARD']),
+  timeLimit: z.number().optional(),
+  hints: z.array(z.string()).optional(),
+  shuffleItems: z.boolean().optional(),
+  allowMultiple: z.boolean().optional(),
+  showZoneHints: z.boolean().optional(),
+  showExplanationAfter: z.boolean().optional(),
+  tags: z.array(z.string()).optional(),
+});
+
+// =================================================================
+// 🎯 UTILITY FUNCTIONS
+// =================================================================
+
+const generateId = (): string => {
+  return `dd_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
+
+const createEmptyItem = (): DragDropItem => ({
+  id: generateId(),
+  text: '',
+  image: undefined,
+  correctPosition: 0,
+});
+
+const createEmptyZone = (): DropZone => ({
+  id: generateId(),
+  label: '',
+  description: undefined,
+  capacity: undefined,
+  hint: undefined,
+  required: false,
+});
+
+const createDefaultQuestion = (): DragDropFormData => ({
+  title: '',
+  description: undefined,
+  items: [
+    { id: generateId(), text: 'Item 1', correctPosition: 0 },
+    { id: generateId(), text: 'Item 2', correctPosition: 1 },
+    { id: generateId(), text: 'Item 3', correctPosition: 2 },
+  ],
+  zones: [
+    { id: generateId(), label: 'Drop Zone 1', required: true },
+  ],
+  correctAnswer: {},
+  explanation: '',
+  points: 1,
+  difficulty: 'MEDIUM',
+  timeLimit: undefined,
+  hints: [],
+  shuffleItems: true,
+  allowMultiple: false,
+  showZoneHints: true,
+  showExplanationAfter: true,
+  tags: [],
+});
+
+const validateFormData = (data: DragDropFormData): string[] => {
+  const errors: string[] = [];
+  
+  // Check if all items have text
+  const emptyItems = data.items.filter(item => !item.text.trim());
+  if (emptyItems.length > 0) {
+    errors.push('All items must have text');
   }
-
-  const removeItem = (itemId: string) => {
-    if (items.length > 2) {
-      const updatedItems = items
-        .filter(item => item.id !== itemId)
-        .map((item, index) => ({
-          ...item,
-          correctPosition: index + 1
-        }))
-      setItems(updatedItems)
-    }
+  
+  // Check if all zones have labels
+  const emptyZones = data.zones.filter(zone => !zone.label.trim());
+  if (emptyZones.length > 0) {
+    errors.push('All zones must have labels');
   }
-
-  const updateItemContent = (itemId: string, content: string) => {
-    setItems(items.map(item => 
-      item.id === itemId 
-        ? { ...item, content }
-        : item
-    ))
+  
+  // Check if correct answer is defined
+  const totalItemsInAnswer = Object.values(data.correctAnswer).flat().length;
+  if (totalItemsInAnswer === 0) {
+    errors.push('Correct answer must be defined');
   }
-
-  const handleDragEnd = (result: any) => {
-    if (!result.destination) return
-
-    const reorderedItems = Array.from(items)
-    const [removed] = reorderedItems.splice(result.source.index, 1)
-    reorderedItems.splice(result.destination.index, 0, removed)
-
-    // Update correct positions based on new order
-    const updatedItems = reorderedItems.map((item, index) => ({
-      ...item,
-      correctPosition: index + 1
-    }))
-
-    setItems(updatedItems)
+  
+  // Check if all items are assigned in correct answer
+  const assignedItemIds = new Set(Object.values(data.correctAnswer).flat());
+  const unassignedItems = data.items.filter(item => !assignedItemIds.has(item.id));
+  if (unassignedItems.length > 0) {
+    errors.push('All items must be assigned to zones in the correct answer');
   }
-
-  const handlePreviewDragEnd = (result: any) => {
-    if (!result.destination) return
-
-    const reorderedItems = Array.from(previewItems)
-    const [removed] = reorderedItems.splice(result.source.index, 1)
-    reorderedItems.splice(result.destination.index, 0, removed)
-
-    setPreviewItems(reorderedItems)
-  }
-
-  const shufflePreviewItems = () => {
-    const validItems = items.filter(item => item.content.trim())
-    const shuffled = [...validItems].sort(() => Math.random() - 0.5)
-    setPreviewItems(shuffled)
-  }
-
-  const resetPreview = () => {
-    shufflePreviewItems()
-  }
-
-  const moveItemUp = (index: number) => {
-    if (index > 0) {
-      const newItems = [...items]
-      ;[newItems[index], newItems[index - 1]] = [newItems[index - 1], newItems[index]]
-      
-      // Update correct positions
-      const updatedItems = newItems.map((item, idx) => ({
-        ...item,
-        correctPosition: idx + 1
-      }))
-      
-      setItems(updatedItems)
-    }
-  }
-
-  const moveItemDown = (index: number) => {
-    if (index < items.length - 1) {
-      const newItems = [...items]
-      ;[newItems[index], newItems[index + 1]] = [newItems[index + 1], newItems[index]]
-      
-      // Update correct positions
-      const updatedItems = newItems.map((item, idx) => ({
-        ...item,
-        correctPosition: idx + 1
-      }))
-      
-      setItems(updatedItems)
-    }
-  }
-
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {}
-
-    // Validate question
-    if (!question.trim()) {
-      newErrors.question = 'Question is required'
-    }
-
-    // Validate items
-    let validItemCount = 0
-    items.forEach((item, index) => {
-      if (!item.content.trim()) {
-        newErrors[`item_${item.id}`] = 'Item content is required'
-      } else {
-        validItemCount++
+  
+  // Check zone capacities
+  for (const zone of data.zones) {
+    if (zone.capacity) {
+      const itemsInZone = data.correctAnswer[zone.id]?.length || 0;
+      if (itemsInZone > zone.capacity) {
+        errors.push(`Zone "${zone.label}" exceeds capacity (${itemsInZone}/${zone.capacity})`);
       }
-    })
-
-    if (validItemCount < 2) {
-      newErrors.items = 'At least 2 items are required'
     }
-
-    // Check for duplicate content
-    const itemContents = items
-      .map(item => item.content.trim().toLowerCase())
-      .filter(Boolean)
-    
-    if (itemContents.length !== new Set(itemContents).size) {
-      newErrors.duplicates = 'Duplicate items found'
-    }
-
-    // Validate points
-    if (points < 1) {
-      newErrors.points = 'Points must be at least 1'
-    }
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
   }
+  
+  return errors;
+};
 
-  const handleSave = () => {
-    if (!validateForm()) return
-
-    const dragDropQuestion: DragDropQuestion = {
-      id: initialData?.id || Date.now().toString(),
-      type: 'drag_drop',
-      question: question.trim(),
-      items: items.filter(item => item.content.trim()),
-      instructions: instructions.trim(),
-      points,
-      shuffleItems,
-      allowPartialCredit
-    }
-
-    onSave(dragDropQuestion)
+const shuffleArray = <T>(array: T[]): T[] => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
+  return shuffled;
+};
 
-  const togglePreview = () => {
-    if (!previewMode) {
-      shufflePreviewItems()
-    }
-    setPreviewMode(!previewMode)
-  }
+// =================================================================
+// 🎯 SORTABLE ITEM FORM COMPONENT
+// =================================================================
 
-  const validItems = items.filter(item => item.content.trim())
+function SortableItemForm({
+  id,
+  item,
+  index,
+  onUpdate,
+  onDelete,
+  disabled = false,
+}: SortableItemFormProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: id,
+    disabled: disabled,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ArrowUpDown className="w-5 h-5 text-purple-500" />
-            Drag & Drop Question Builder
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Question Input */}
-          <div className="space-y-2">
-            <Label htmlFor="question">Question *</Label>
-            <Textarea
-              id="question"
-              placeholder="Enter your drag and drop question (e.g., 'Arrange the following steps in chronological order')"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              className={errors.question ? 'border-red-500' : ''}
-              rows={3}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "group relative p-4 border rounded-lg transition-all duration-200",
+        "bg-white hover:bg-gray-50",
+        isDragging && "shadow-lg",
+        disabled && "opacity-60"
+      )}
+    >
+      {/* Drag Handle */}
+      <div
+        className="absolute left-2 top-1/2 -translate-y-1/2 cursor-move"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+      </div>
+
+      {/* Item Content */}
+      <div className="ml-8 space-y-3">
+        <div className="flex items-start gap-3">
+          {/* Item Number */}
+          <span className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium">
+            {index + 1}
+          </span>
+
+          {/* Item Text */}
+          <div className="flex-1 space-y-2">
+            <Input
+              value={item.text}
+              onChange={(e) => onUpdate('text', e.target.value)}
+              placeholder={`Item ${index + 1} text...`}
+              disabled={disabled}
+              className="w-full"
             />
-            {errors.question && (
-              <p className="text-sm text-red-500 flex items-center gap-1">
-                <AlertCircle className="w-4 h-4" />
-                {errors.question}
-              </p>
+            
+            {/* Item Image URL (optional) */}
+            <Input
+              value={item.image || ''}
+              onChange={(e) => onUpdate('image', e.target.value)}
+              placeholder="Image URL (optional)..."
+              disabled={disabled}
+              className="w-full text-sm"
+            />
+          </div>
+
+          {/* Delete Button */}
+          {index > 1 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onDelete}
+              disabled={disabled}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// 🎯 DRAG OVERLAY ITEM
+// =================================================================
+
+function DragOverlayItem({ item, index }: { item: DragDropItem; index: number }) {
+  return (
+    <div className="p-4 border rounded-lg bg-white shadow-lg">
+      <div className="flex items-center gap-3">
+        <GripVertical className="w-4 h-4 text-gray-400" />
+        <span className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium">
+          {index + 1}
+        </span>
+        <span className="text-sm font-medium">{item.text || `Item ${index + 1}`}</span>
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// 🎯 ZONE FORM COMPONENT
+// =================================================================
+
+function ZoneForm({
+  zone,
+  index,
+  onUpdate,
+  onDelete,
+  disabled = false,
+}: ZoneFormProps) {
+  return (
+    <div className="p-4 border rounded-lg bg-gray-50 space-y-3">
+      <div className="flex items-start gap-3">
+        <Target className="w-5 h-5 text-gray-600 mt-1" />
+        
+        <div className="flex-1 space-y-3">
+          {/* Zone Label */}
+          <div className="flex items-center gap-2">
+            <Input
+              value={zone.label}
+              onChange={(e) => onUpdate('label', e.target.value)}
+              placeholder={`Zone ${index + 1} label...`}
+              disabled={disabled}
+              className="flex-1"
+            />
+            
+            {/* Required Toggle */}
+            <div className="flex items-center gap-2">
+              <Label htmlFor={`required-${zone.id}`} className="text-sm">
+                Required
+              </Label>
+              <Switch
+                id={`required-${zone.id}`}
+                checked={zone.required}
+                onCheckedChange={(checked) => onUpdate('required', checked)}
+                disabled={disabled}
+              />
+            </div>
+          </div>
+          
+          {/* Zone Description */}
+          <Input
+            value={zone.description || ''}
+            onChange={(e) => onUpdate('description', e.target.value)}
+            placeholder="Zone description (optional)..."
+            disabled={disabled}
+            className="text-sm"
+          />
+          
+          {/* Zone Hint */}
+          <Input
+            value={zone.hint || ''}
+            onChange={(e) => onUpdate('hint', e.target.value)}
+            placeholder="Hint for this zone (optional)..."
+            disabled={disabled}
+            className="text-sm"
+          />
+          
+          {/* Zone Capacity */}
+          <div className="flex items-center gap-2">
+            <Label htmlFor={`capacity-${zone.id}`} className="text-sm">
+              Capacity:
+            </Label>
+            <Input
+              id={`capacity-${zone.id}`}
+              type="number"
+              min={1}
+              value={zone.capacity || ''}
+              onChange={(e) => onUpdate('capacity', e.target.value ? parseInt(e.target.value) : undefined)}
+              placeholder="Unlimited"
+              disabled={disabled}
+              className="w-24"
+            />
+          </div>
+        </div>
+
+        {/* Delete Button */}
+        {index > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onDelete}
+            disabled={disabled}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// 🎯 PREVIEW MODE COMPONENT
+// =================================================================
+
+function PreviewMode({
+  items,
+  zones,
+  correctAnswer,
+  onReset,
+}: PreviewModeProps) {
+  const [previewItems, setPreviewItems] = useState(() => shuffleArray(items));
+  const [placements, setPlacements] = useState<Record<string, string[]>>({});
+  
+  const handleDrop = (itemId: string, zoneId: string) => {
+    setPlacements(prev => {
+      const newPlacements = { ...prev };
+      
+      // Remove item from all zones
+      Object.keys(newPlacements).forEach(zone => {
+        newPlacements[zone] = newPlacements[zone].filter(id => id !== itemId);
+      });
+      
+      // Add item to new zone
+      if (!newPlacements[zoneId]) {
+        newPlacements[zoneId] = [];
+      }
+      newPlacements[zoneId].push(itemId);
+      
+      return newPlacements;
+    });
+  };
+
+  const checkAnswer = () => {
+    let correct = true;
+    
+    // Check if all placements match correct answer
+    for (const zoneId of Object.keys(correctAnswer)) {
+      const correctItems = correctAnswer[zoneId] || [];
+      const placedItems = placements[zoneId] || [];
+      
+      if (correctItems.length !== placedItems.length) {
+        correct = false;
+        break;
+      }
+      
+      for (const itemId of correctItems) {
+        if (!placedItems.includes(itemId)) {
+          correct = false;
+          break;
+        }
+      }
+    }
+    
+    return correct;
+  };
+
+  const isCorrect = checkAnswer();
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+        <p className="text-sm text-blue-700">
+          <Eye className="w-4 h-4 inline mr-1" />
+          Preview Mode: Try arranging the items
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            setPreviewItems(shuffleArray(items));
+            setPlacements({});
+            onReset();
+          }}
+        >
+          <RotateCcw className="w-4 h-4 mr-1" />
+          Reset
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Items Bank */}
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-gray-700">Items</h4>
+          <div className="border rounded-lg p-4 min-h-[200px] bg-white">
+            {previewItems
+              .filter(item => !Object.values(placements).flat().includes(item.id))
+              .map(item => (
+                <div
+                  key={item.id}
+                  className="p-2 border rounded bg-gray-50 mb-2 cursor-move"
+                >
+                  {item.text}
+                </div>
+              ))}
+          </div>
+        </div>
+
+        {/* Drop Zones */}
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-gray-700">Drop Zones</h4>
+          <div className="space-y-3">
+            {zones.map(zone => (
+              <div
+                key={zone.id}
+                className="border-2 border-dashed rounded-lg p-4 min-h-[100px] bg-gray-50"
+              >
+                <div className="text-sm font-medium text-gray-700 mb-2">
+                  {zone.label}
+                </div>
+                <div className="space-y-2">
+                  {(placements[zone.id] || []).map(itemId => {
+                    const item = items.find(i => i.id === itemId);
+                    return item ? (
+                      <div
+                        key={itemId}
+                        className="p-2 border rounded bg-white"
+                      >
+                        {item.text}
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {Object.values(placements).flat().length === items.length && (
+        <Alert className={isCorrect ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
+          {isCorrect ? (
+            <CheckCircle className="w-4 h-4 text-green-600" />
+          ) : (
+            <AlertCircle className="w-4 h-4 text-red-600" />
+          )}
+          <AlertDescription className={isCorrect ? "text-green-700" : "text-red-700"}>
+            {isCorrect ? "Correct! All items are in the right places." : "Not quite right. Try again!"}
+          </AlertDescription>
+        </Alert>
+      )}
+    </div>
+  );
+}
+
+// =================================================================
+// 🎯 MAIN COMPONENT
+// =================================================================
+
+function DragDropBuilder({
+  initialData,
+  onSave,
+  onCancel,
+  onPreview,
+  isEditing = false,
+  className
+}: DragDropBuilderProps) {
+  // State Management
+  const [showPreview, setShowPreview] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  
+  // DND-Kit Sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Drop animation config
+  const dropAnimationConfig: DropAnimation = {
+    sideEffects: defaultDropAnimationSideEffects({
+      styles: {
+        active: {
+          opacity: '0.5',
+        },
+      },
+    }),
+  };
+  
+  // Form Setup
+  const {
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors, isValid }
+  } = useForm<DragDropFormData>({
+    resolver: zodResolver(dragDropQuestionSchema),
+    defaultValues: {
+      ...createDefaultQuestion(),
+      ...initialData
+    },
+    mode: 'onChange'
+  });
+
+  const watchedData = watch();
+
+  // Event Handlers
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id);
+  };
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    setActiveId(null);
+
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = watchedData.items.findIndex(item => item.id === active.id);
+    const newIndex = watchedData.items.findIndex(item => item.id === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newItems = arrayMove(watchedData.items, oldIndex, newIndex);
+      
+      // Update correct positions
+      newItems.forEach((item, index) => {
+        item.correctPosition = index;
+      });
+      
+      setValue('items', newItems);
+    }
+  }, [watchedData.items, setValue]);
+
+  const handleAddItem = useCallback(() => {
+    if (watchedData.items.length >= 20) {
+      toast.error('Maximum 20 items allowed');
+      return;
+    }
+
+    const newItem = createEmptyItem();
+    newItem.correctPosition = watchedData.items.length;
+    setValue('items', [...watchedData.items, newItem]);
+    toast.success('Item added');
+  }, [watchedData.items, setValue]);
+
+  const handleDeleteItem = useCallback((index: number) => {
+    if (watchedData.items.length <= 2) {
+      toast.error('Minimum 2 items required');
+      return;
+    }
+
+    const itemToDelete = watchedData.items[index];
+    const newItems = watchedData.items.filter((_, i) => i !== index);
+    
+    // Update correct positions
+    newItems.forEach((item, idx) => {
+      item.correctPosition = idx;
+    });
+    
+    setValue('items', newItems);
+    
+    // Remove from correct answer
+    const newCorrectAnswer = { ...watchedData.correctAnswer };
+    Object.keys(newCorrectAnswer).forEach(zoneId => {
+      newCorrectAnswer[zoneId] = newCorrectAnswer[zoneId].filter(id => id !== itemToDelete.id);
+    });
+    setValue('correctAnswer', newCorrectAnswer);
+    
+    toast.success('Item deleted');
+  }, [watchedData.items, watchedData.correctAnswer, setValue]);
+
+  const handleUpdateItem = useCallback((index: number, field: keyof DragDropItem, value: string | number) => {
+    const newItems = [...watchedData.items];
+    newItems[index] = { ...newItems[index], [field]: value };
+    setValue('items', newItems);
+  }, [watchedData.items, setValue]);
+
+  const handleAddZone = useCallback(() => {
+    if (watchedData.zones.length >= 6) {
+      toast.error('Maximum 6 zones allowed');
+      return;
+    }
+
+    setValue('zones', [...watchedData.zones, createEmptyZone()]);
+    toast.success('Zone added');
+  }, [watchedData.zones, setValue]);
+
+  const handleDeleteZone = useCallback((index: number) => {
+    if (watchedData.zones.length <= 1) {
+      toast.error('At least 1 zone required');
+      return;
+    }
+
+    const zoneToDelete = watchedData.zones[index];
+    const newZones = watchedData.zones.filter((_, i) => i !== index);
+    setValue('zones', newZones);
+    
+    // Remove from correct answer
+    const newCorrectAnswer = { ...watchedData.correctAnswer };
+    delete newCorrectAnswer[zoneToDelete.id];
+    setValue('correctAnswer', newCorrectAnswer);
+    
+    toast.success('Zone deleted');
+  }, [watchedData.zones, watchedData.correctAnswer, setValue]);
+
+  const handleUpdateZone = useCallback((index: number, field: keyof DropZone, value: string | number | boolean | undefined) => {
+    const newZones = [...watchedData.zones];
+    newZones[index] = { ...newZones[index], [field]: value };
+    setValue('zones', newZones);
+  }, [watchedData.zones, setValue]);
+
+  const handleAssignItem = useCallback((itemId: string, zoneId: string) => {
+    const newCorrectAnswer = { ...watchedData.correctAnswer };
+    
+    // Remove item from all zones
+    Object.keys(newCorrectAnswer).forEach(zone => {
+      newCorrectAnswer[zone] = newCorrectAnswer[zone].filter(id => id !== itemId);
+    });
+    
+    // Add item to new zone
+    if (!newCorrectAnswer[zoneId]) {
+      newCorrectAnswer[zoneId] = [];
+    }
+    newCorrectAnswer[zoneId].push(itemId);
+    
+    setValue('correctAnswer', newCorrectAnswer);
+  }, [watchedData.correctAnswer, setValue]);
+
+  const handleAddHint = useCallback(() => {
+    const newHints = [...(watchedData.hints || []), ''];
+    setValue('hints', newHints);
+  }, [watchedData.hints, setValue]);
+
+  const handleDeleteHint = useCallback((index: number) => {
+    const newHints = (watchedData.hints || []).filter((_, i) => i !== index);
+    setValue('hints', newHints);
+  }, [watchedData.hints, setValue]);
+
+  const onSubmit = useCallback((data: DragDropFormData) => {
+    const customErrors = validateFormData(data);
+    
+    if (customErrors.length > 0) {
+      setValidationErrors(customErrors);
+      toast.error('Please fix validation errors');
+      return;
+    }
+
+    setValidationErrors([]);
+
+    const question: DragDropQuestion = {
+      id: initialData?.id || generateId(),
+      type: 'DRAG_DROP',
+      ...data,
+      createdAt: initialData?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    onSave(question);
+    toast.success(isEditing ? 'Question updated' : 'Question created');
+  }, [initialData, onSave, isEditing]);
+
+  const handlePreview = useCallback(() => {
+    if (onPreview && isValid) {
+      const question: DragDropQuestion = {
+        id: initialData?.id || generateId(),
+        type: 'DRAG_DROP',
+        ...watchedData,
+        createdAt: initialData?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      onPreview(question);
+    }
+  }, [onPreview, isValid, watchedData, initialData]);
+
+  const activeItem = activeId 
+    ? watchedData.items.find(item => item.id === activeId)
+    : null;
+  const activeIndex = activeId
+    ? watchedData.items.findIndex(item => item.id === activeId)
+    : -1;
+
+  return (
+    <Card className={cn("w-full max-w-5xl mx-auto", className)}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Move className="w-5 h-5 text-blue-600" />
+          {isEditing ? 'Edit Drag & Drop Question' : 'Create Drag & Drop Question'}
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent>
+        {/* Validation Errors */}
+        {validationErrors.length > 0 && (
+          <Alert className="mb-6 border-red-200 bg-red-50">
+            <AlertCircle className="w-4 h-4 text-red-600" />
+            <div className="ml-2">
+              <div className="font-medium text-sm text-red-800">Validation Errors:</div>
+              {validationErrors.map((error, index) => (
+                <AlertDescription key={index} className="text-sm text-red-700">
+                  • {error}
+                </AlertDescription>
+              ))}
+            </div>
+          </Alert>
+        )}
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {/* Title */}
+          <div className="space-y-2">
+            <Label htmlFor="title" className="required">
+              Question Title
+            </Label>
+            <Controller
+              name="title"
+              control={control}
+              render={({ field }) => (
+                <Textarea
+                  {...field}
+                  id="title"
+                  placeholder="Enter your drag and drop question..."
+                  className="min-h-[100px]"
+                  rows={3}
+                />
+              )}
+            />
+            {errors.title && (
+              <p className="text-sm text-red-600">{errors.title.message}</p>
             )}
           </div>
 
-          {/* Instructions */}
+          {/* Description (Optional) */}
           <div className="space-y-2">
-            <Label htmlFor="instructions">Instructions</Label>
-            <Textarea
-              id="instructions"
-              placeholder="Instructions for students on how to complete the drag and drop"
-              value={instructions}
-              onChange={(e) => setInstructions(e.target.value)}
-              rows={2}
+            <Label htmlFor="description">
+              Description (Optional)
+            </Label>
+            <Controller
+              name="description"
+              control={control}
+              render={({ field }) => (
+                <Textarea
+                  {...field}
+                  id="description"
+                  placeholder="Additional instructions or context..."
+                  className="min-h-[60px]"
+                  rows={2}
+                />
+              )}
             />
           </div>
 
-          {/* Settings Row */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Points */}
-            <div className="space-y-2">
-              <Label htmlFor="points">Points</Label>
-              <Input
-                id="points"
-                type="number"
-                min="1"
-                value={points}
-                onChange={(e) => setPoints(parseInt(e.target.value) || 1)}
-                className={errors.points ? 'border-red-500' : ''}
-              />
-              {errors.points && (
-                <p className="text-sm text-red-500 flex items-center gap-1">
-                  <AlertCircle className="w-4 h-4" />
-                  {errors.points}
-                </p>
-              )}
+          {/* Items Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label className="required">Draggable Items</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddItem}
+                disabled={watchedData.items.length >= 20}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add Item
+              </Button>
             </div>
 
-            {/* Shuffle Items */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Shuffle Items</Label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="shuffleItems"
-                  checked={shuffleItems}
-                  onChange={(e) => setShuffleItems(e.target.checked)}
-                  className="rounded border-gray-300"
-                />
-                <Label htmlFor="shuffleItems" className="text-sm text-gray-600">
-                  Randomize item order for students
-                </Label>
-              </div>
-            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={watchedData.items.map(item => item.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3">
+                  {watchedData.items.map((item, index) => (
+                    <SortableItemForm
+                      key={item.id}
+                      id={item.id}
+                      item={item}
+                      index={index}
+                      onUpdate={(field, value) => handleUpdateItem(index, field, value)}
+                      onDelete={() => handleDeleteItem(index)}
+                      disabled={false}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
 
-            {/* Partial Credit */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Partial Credit</Label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="allowPartialCredit"
-                  checked={allowPartialCredit}
-                  onChange={(e) => setAllowPartialCredit(e.target.checked)}
-                  className="rounded border-gray-300"
-                />
-                <Label htmlFor="allowPartialCredit" className="text-sm text-gray-600">
-                  Award points for partially correct answers
-                </Label>
-              </div>
-            </div>
+              <DragOverlay dropAnimation={dropAnimationConfig}>
+                {activeId && activeItem && activeIndex !== -1 ? (
+                  <DragOverlayItem item={activeItem} index={activeIndex} />
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+
+            {errors.items && (
+              <p className="text-sm text-red-600">{errors.items.message}</p>
+            )}
           </div>
 
           <Separator />
 
-          {/* Items Management */}
+          {/* Zones Section */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium">Items to Order</h3>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={togglePreview}
-                >
-                  <Eye className="w-4 h-4 mr-1" />
-                  {previewMode ? 'Edit' : 'Preview'}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addItem}
-                  disabled={previewMode}
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Add Item
-                </Button>
-              </div>
+              <Label className="required">Drop Zones</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddZone}
+                disabled={watchedData.zones.length >= 6}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add Zone
+              </Button>
             </div>
 
-            {errors.items && (
-              <Alert variant="destructive">
-                <AlertCircle className="w-4 h-4" />
-                <AlertDescription>{errors.items}</AlertDescription>
-              </Alert>
-            )}
-
-            {errors.duplicates && (
-              <Alert variant="destructive">
-                <AlertCircle className="w-4 h-4" />
-                <AlertDescription>{errors.duplicates}</AlertDescription>
-              </Alert>
-            )}
-
-            {!previewMode ? (
-              /* Edit Mode */
-              <DragDropContext onDragEnd={handleDragEnd}>
-                <Droppable droppableId="items">
-                  {(provided) => (
-                    <div
-                      {...provided.droppableProps}
-                      ref={provided.innerRef}
-                      className="space-y-3"
-                    >
-                      {items.map((item, index) => (
-                        <Draggable key={item.id} draggableId={item.id} index={index}>
-                          {(provided, snapshot) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              className={`p-4 border rounded-lg bg-white ${
-                                snapshot.isDragging ? 'shadow-lg' : ''
-                              } ${errors[`item_${item.id}`] ? 'border-red-500' : ''}`}
-                            >
-                              <div className="flex items-center gap-4">
-                                {/* Drag Handle & Position */}
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    {...provided.dragHandleProps}
-                                    className="flex flex-col items-center text-gray-400 hover:text-gray-600"
-                                  >
-                                    <GripVertical className="w-5 h-5" />
-                                  </div>
-                                  <Badge variant="outline" className="min-w-[2rem] text-center">
-                                    {index + 1}
-                                  </Badge>
-                                </div>
-
-                                {/* Item Content */}
-                                <div className="flex-1">
-                                  <Input
-                                    placeholder={`Enter item ${index + 1}...`}
-                                    value={item.content}
-                                    onChange={(e) => updateItemContent(item.id, e.target.value)}
-                                    className={errors[`item_${item.id}`] ? 'border-red-500' : ''}
-                                  />
-                                </div>
-
-                                {/* Move Buttons */}
-                                <div className="flex flex-col gap-1">
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => moveItemUp(index)}
-                                    disabled={index === 0}
-                                    className="h-6 w-6 p-0"
-                                  >
-                                    ↑
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => moveItemDown(index)}
-                                    disabled={index === items.length - 1}
-                                    className="h-6 w-6 p-0"
-                                  >
-                                    ↓
-                                  </Button>
-                                </div>
-
-                                {/* Remove Button */}
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeItem(item.id)}
-                                  disabled={items.length <= 2}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-
-                              {/* Error Display */}
-                              {errors[`item_${item.id}`] && (
-                                <p className="text-sm text-red-500 mt-2 flex items-center gap-1">
-                                  <AlertCircle className="w-4 h-4" />
-                                  {errors[`item_${item.id}`]}
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </DragDropContext>
-            ) : (
-              /* Preview Mode */
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                  <p className="text-sm text-blue-700">
-                    <Target className="w-4 h-4 inline mr-1" />
-                    Preview: Try dragging items to reorder them
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={resetPreview}
-                  >
-                    <RotateCcw className="w-4 h-4 mr-1" />
-                    Reset
-                  </Button>
-                </div>
-
-                <DragDropContext onDragEnd={handlePreviewDragEnd}>
-                  <Droppable droppableId="preview-items">
-                    {(provided) => (
-                      <div
-                        {...provided.droppableProps}
-                        ref={provided.innerRef}
-                        className="space-y-3"
-                      >
-                        {previewItems.map((item, index) => (
-                          <Draggable key={item.id} draggableId={item.id} index={index}>
-                            {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                className={`p-4 border rounded-lg bg-white cursor-move ${
-                                  snapshot.isDragging ? 'shadow-lg' : ''
-                                }`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <GripVertical className="w-5 h-5 text-gray-400" />
-                                  <span>{item.content}</span>
-                                </div>
-                              </div>
-                            )}
-                          </Draggable>
-                        ))}
-                        {provided.placeholder}
-                      </div>
-                    )}
-                  </Droppable>
-                </DragDropContext>
-              </div>
-            )}
-          </div>
-
-          {/* Summary */}
-          {validItems.length > 0 && !previewMode && (
             <div className="space-y-3">
-              <h3 className="text-lg font-medium flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-500" />
-                Question Summary
-              </h3>
-              <div className="p-4 bg-gray-50 rounded-lg space-y-3">
-                <p className="font-medium">{question}</p>
-                {instructions && (
-                  <p className="text-sm text-gray-600 italic">{instructions}</p>
+              {watchedData.zones.map((zone, index) => (
+                <ZoneForm
+                  key={zone.id}
+                  zone={zone}
+                  index={index}
+                  onUpdate={(field, value) => handleUpdateZone(index, field, value)}
+                  onDelete={() => handleDeleteZone(index)}
+                  disabled={false}
+                />
+              ))}
+            </div>
+
+            {errors.zones && (
+              <p className="text-sm text-red-600">{errors.zones.message}</p>
+            )}
+          </div>
+
+          <Separator />
+
+          {/* Correct Answer Assignment */}
+          <div className="space-y-4">
+            <Label className="required">Correct Answer Assignment</Label>
+            <div className="p-4 bg-gray-50 rounded-lg space-y-4">
+              {watchedData.zones.map(zone => (
+                <div key={zone.id} className="space-y-2">
+                  <h4 className="text-sm font-medium text-gray-700">{zone.label || 'Unnamed Zone'}</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {watchedData.items.map(item => {
+                      const isAssigned = watchedData.correctAnswer[zone.id]?.includes(item.id);
+                      return (
+                        <Button
+                          key={item.id}
+                          type="button"
+                          variant={isAssigned ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handleAssignItem(item.id, zone.id)}
+                          className={cn(
+                            "transition-all",
+                            isAssigned && "bg-blue-600 hover:bg-blue-700"
+                          )}
+                        >
+                          {item.text || `Item ${watchedData.items.indexOf(item) + 1}`}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {errors.correctAnswer && (
+              <p className="text-sm text-red-600">{errors.correctAnswer.message}</p>
+            )}
+          </div>
+
+          {/* Explanation */}
+          <div className="space-y-2">
+            <Label htmlFor="explanation">
+              Explanation (shown after answering)
+            </Label>
+            <Controller
+              name="explanation"
+              control={control}
+              render={({ field }) => (
+                <Textarea
+                  {...field}
+                  id="explanation"
+                  placeholder="Explain the correct arrangement..."
+                  className="min-h-[80px]"
+                  rows={3}
+                />
+              )}
+            />
+          </div>
+
+          {/* Points & Difficulty */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="points" className="required">Points</Label>
+              <Controller
+                name="points"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id="points"
+                    type="number"
+                    min={1}
+                    max={100}
+                    onChange={(e) => field.onChange(parseInt(e.target.value))}
+                  />
                 )}
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-700">Correct Order:</p>
-                  <ol className="space-y-1">
-                    {validItems.map((item, index) => (
-                      <li key={item.id} className="text-sm">
-                        {index + 1}. {item.content}
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-                <div className="flex gap-4 text-sm">
-                  <Badge variant="secondary">
-                    {points} {points === 1 ? 'point' : 'points'}
-                  </Badge>
-                  {shuffleItems && (
-                    <Badge variant="outline">Shuffled</Badge>
+              />
+              {errors.points && (
+                <p className="text-sm text-red-600">{errors.points.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="difficulty" className="required">Difficulty</Label>
+              <Controller
+                name="difficulty"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id="difficulty">
+                      <SelectValue placeholder="Select difficulty" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EASY">Easy</SelectItem>
+                      <SelectItem value="MEDIUM">Medium</SelectItem>
+                      <SelectItem value="HARD">Hard</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Time Limit (Optional) */}
+          <div className="space-y-2">
+            <Label htmlFor="timeLimit">Time Limit (seconds, optional)</Label>
+            <Controller
+              name="timeLimit"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  id="timeLimit"
+                  type="number"
+                  min={10}
+                  placeholder="No time limit"
+                  onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                />
+              )}
+            />
+          </div>
+
+          {/* Options */}
+          <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-700">Question Options</h4>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="shuffleItems">Shuffle Items</Label>
+                <Controller
+                  name="shuffleItems"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="shuffleItems"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
                   )}
-                  {allowPartialCredit && (
-                    <Badge variant="outline">Partial Credit</Badge>
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="allowMultiple">Allow Multiple Items per Zone</Label>
+                <Controller
+                  name="allowMultiple"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="allowMultiple"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
                   )}
-                </div>
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showZoneHints">Show Zone Hints</Label>
+                <Controller
+                  name="showZoneHints"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="showZoneHints"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showExplanationAfter">Show Explanation After Answer</Label>
+                <Controller
+                  name="showExplanationAfter"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="showExplanationAfter"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
               </div>
             </div>
-          )}
-
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onCancel}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              onClick={handleSave}
-              disabled={items.length < 2 || !question.trim() || previewMode}
-            >
-              Save Question
-            </Button>
           </div>
-        </CardContent>
-      </Card>
-    </div>
-  )
+
+          {/* Hints */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Hints (Optional)</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleAddHint}
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Add Hint
+              </Button>
+            </div>
+
+            {watchedData.hints && watchedData.hints.length > 0 && (
+              <div className="space-y-2">
+                {watchedData.hints.map((hint, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Input
+                      value={hint}
+                      onChange={(e) => {
+                        const newHints = [...watchedData.hints!];
+                        newHints[index] = e.target.value;
+                        setValue('hints', newHints);
+                      }}
+                      placeholder={`Hint ${index + 1}...`}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteHint(index)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-between pt-6 border-t">
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowPreview(!showPreview)}
+              >
+                {showPreview ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
+                {showPreview ? 'Hide' : 'Show'} Preview
+              </Button>
+              
+              {onPreview && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePreview}
+                  disabled={!isValid}
+                >
+                  External Preview
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+              >
+                Cancel
+              </Button>
+              
+              <Button
+                type="submit"
+                disabled={!isValid || validationErrors.length > 0}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {isEditing ? 'Update Question' : 'Create Question'}
+              </Button>
+            </div>
+          </div>
+        </form>
+
+        {/* Preview Mode */}
+        {showPreview && watchedData.items.length > 0 && watchedData.zones.length > 0 && (
+          <div className="mt-6">
+            <Separator className="mb-6" />
+            <PreviewMode
+              items={watchedData.items}
+              zones={watchedData.zones}
+              correctAnswer={watchedData.correctAnswer}
+              onReset={() => setShowPreview(false)}
+            />
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
+
+// Component Display Name
+DragDropBuilder.displayName = 'DragDropBuilder';
+
+// =================================================================
+// 🎯 EXPORTS
+// =================================================================
+
+export default DragDropBuilder;
+export { 
+  SortableItemForm as ItemForm,
+  ZoneForm,
+  PreviewMode,
+  generateId,
+  createEmptyItem,
+  createEmptyZone,
+  createDefaultQuestion,
+  validateFormData,
+  shuffleArray,
+  type DragDropBuilderProps,
+  type ItemFormProps,
+  type ZoneFormProps,
+  type PreviewModeProps
+};

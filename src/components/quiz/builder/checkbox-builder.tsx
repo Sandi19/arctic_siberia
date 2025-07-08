@@ -1,11 +1,20 @@
 // File: src/components/quiz/builder/checkbox-builder.tsx
 
-'use client'
+/**
+ * =================================================================
+ * 🔧 CHECKBOX BUILDER COMPONENT - Migrated to @dnd-kit
+ * =================================================================
+ * Multiple Selection Question builder with drag & drop options
+ * Created: July 2025
+ * Phase: 4 - Quiz Builders
+ * =================================================================
+ */
 
-// ✅ FIXED: Framework & Core Imports
-import React, { useState, useCallback, useEffect } from 'react'
+'use client';
 
-// ✅ FIXED: UI Components menggunakan barrel imports dari index.ts
+import React, { useState, useCallback, useMemo } from 'react';
+
+// ✅ FIXED: UI Components dari barrel imports
 import {
   Button,
   Card,
@@ -14,453 +23,479 @@ import {
   CardTitle,
   Input,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Textarea,
-  Checkbox,
-  Switch,
   Badge,
   Alert,
   AlertDescription,
-  Separator,
-  Progress
-} from '@/components/ui'
-
-// Feature Components
-import { OptionEditor } from '../shared/option-editor'
+  Switch,
+  Checkbox,
+} from '@/components/ui';
 
 // Icons
-import { 
-  Plus, 
-  Trash2, 
-  Edit3, 
-  CheckSquare2, 
-  Square, 
+import {
+  Plus,
+  Trash2,
   GripVertical,
-  AlertTriangle,
+  Save,
   Eye,
   EyeOff,
-  Shuffle,
-  RotateCcw,
-  Save,
-  Target,
-  CheckCircle2,
-  Settings
-} from 'lucide-react'
+  AlertCircle,
+  CheckSquare2,
+  Square,
+  Lightbulb,
+  Calculator,
+  Info,
+} from 'lucide-react';
 
-// External Libraries
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
-import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { toast } from 'sonner'
+// ✅ NEW: @dnd-kit imports
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  DropAnimation,
+  UniqueIdentifier,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+// Form & Validation
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { toast } from 'sonner';
 
 // Local Utilities
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils';
 
 // Types
-import type { CheckboxQuestion, CheckboxOption } from '../types'
-
-// =================================================================
-// 🎯 VALIDATION SCHEMAS
-// =================================================================
-
-const checkboxOptionSchema = z.object({
-  id: z.string(),
-  text: z.string().min(1, 'Option text is required').max(500, 'Option text too long'),
-  imageUrl: z.string().optional(),
-  imageAlt: z.string().optional(),
-  explanation: z.string().optional()
-})
-
-const checkboxQuestionSchema = z.object({
-  question: z.string().min(10, 'Question must be at least 10 characters').max(1000, 'Question too long'),
-  instructions: z.string().optional(),
-  options: z.array(checkboxOptionSchema).min(2, 'At least 2 options required').max(15, 'Maximum 15 options allowed'),
-  correctAnswers: z.array(z.string()).min(1, 'At least one correct answer required'),
-  explanation: z.string().optional(),
-  hints: z.array(z.string()).optional(),
-  points: z.number().min(1, 'Points must be at least 1').max(100, 'Maximum 100 points'),
-  minSelections: z.number().min(0).optional(),
-  maxSelections: z.number().min(1).optional(),
-  exactSelections: z.number().min(1).optional(),
-  shuffleOptions: z.boolean().default(false),
-  allowPartialCredit: z.boolean().default(true),
-  showExplanation: z.boolean().default(true),
-  penalizeIncorrect: z.boolean().default(false)
-})
-
-type CheckboxFormData = z.infer<typeof checkboxQuestionSchema>
+import type { CheckboxQuestion, BuilderComponentProps } from '../types';
 
 // =================================================================
 // 🎯 INTERFACES & TYPES
 // =================================================================
 
-interface CheckboxBuilderProps {
-  initialData?: Partial<CheckboxQuestion>
-  onSave: (question: CheckboxQuestion) => void
-  onCancel: () => void
-  onPreview?: (question: CheckboxQuestion) => void
-  isEditing?: boolean
-  className?: string
+interface CheckboxBuilderProps extends BuilderComponentProps<CheckboxQuestion> {
+  className?: string;
+}
+
+interface CheckboxOption {
+  id: string;
+  text: string;
+  explanation?: string;
+  weight?: number; // For partial credit scoring
+}
+
+interface CheckboxFormData {
+  question: string;
+  instructions?: string;
+  options: CheckboxOption[];
+  correctAnswers: string[]; // Array of option IDs
+  explanation?: string;
+  points: number;
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  timeLimit?: number;
+  hints?: string[];
+  minSelections?: number;
+  maxSelections?: number;
+  partialCredit?: boolean;
+  penalizeIncorrect?: boolean;
+  shuffleOptions?: boolean;
+  showExplanationAfter?: boolean;
+  tags?: string[];
 }
 
 interface OptionItemProps {
-  option: CheckboxOption
-  index: number
-  isCorrect: boolean
-  onEdit: (index: number, option: CheckboxOption) => void
-  onDelete: (index: number) => void
-  onToggleCorrect: (index: number) => void
-  isDragDisabled?: boolean
+  option: CheckboxOption;
+  index: number;
+  isCorrect: boolean;
+  onUpdate: (field: keyof CheckboxOption, value: string | number) => void;
+  onDelete: () => void;
+  onToggleCorrect: () => void;
+  disabled?: boolean;
+  showWeight?: boolean;
+}
+
+interface SortableOptionItemProps extends OptionItemProps {
+  id: string;
 }
 
 interface SelectionConstraintsProps {
-  minSelections?: number
-  maxSelections?: number
-  exactSelections?: number
-  onMinChange: (value: number | undefined) => void
-  onMaxChange: (value: number | undefined) => void
-  onExactChange: (value: number | undefined) => void
-  totalOptions: number
+  minSelections?: number;
+  maxSelections?: number;
+  totalOptions: number;
+  onMinChange: (value: number | undefined) => void;
+  onMaxChange: (value: number | undefined) => void;
 }
 
 interface QuestionPreview {
-  question: CheckboxQuestion
-  isVisible: boolean
+  id: string;
+  type: string;
+  question: string;
+  instructions?: string;
+  options: CheckboxOption[];
+  correctAnswers: string[];
+  minSelections?: number;
+  maxSelections?: number;
+  partialCredit?: boolean;
+  penalizeIncorrect?: boolean;
+  explanation?: string;
+  createdAt: string;
+  updatedAt: string;
 }
+
+// =================================================================
+// 🎯 VALIDATION SCHEMA
+// =================================================================
+
+const checkboxQuestionSchema = z.object({
+  question: z.string().min(10, 'Question must be at least 10 characters'),
+  instructions: z.string().optional(),
+  options: z.array(z.object({
+    id: z.string(),
+    text: z.string().min(1, 'Option text is required'),
+    explanation: z.string().optional(),
+    weight: z.number().optional(),
+  })).min(2, 'At least 2 options are required').max(15, 'Maximum 15 options allowed'),
+  correctAnswers: z.array(z.string()).min(1, 'At least 1 correct answer is required'),
+  explanation: z.string().optional(),
+  points: z.number().min(1).max(100),
+  difficulty: z.enum(['EASY', 'MEDIUM', 'HARD']),
+  timeLimit: z.number().optional(),
+  hints: z.array(z.string()).optional(),
+  minSelections: z.number().optional(),
+  maxSelections: z.number().optional(),
+  partialCredit: z.boolean().optional(),
+  penalizeIncorrect: z.boolean().optional(),
+  shuffleOptions: z.boolean().optional(),
+  showExplanationAfter: z.boolean().optional(),
+  tags: z.array(z.string()).optional(),
+});
 
 // =================================================================
 // 🎯 UTILITY FUNCTIONS
 // =================================================================
 
 const generateId = (): string => {
-  return `cb_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-}
+  return `cb_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
 
 const createEmptyOption = (): CheckboxOption => ({
   id: generateId(),
   text: '',
-  imageUrl: '',
-  imageAlt: '',
-  explanation: ''
-})
+  explanation: undefined,
+  weight: 1,
+});
 
-const createDefaultQuestion = (): Partial<CheckboxQuestion> => ({
+const createDefaultQuestion = (): CheckboxFormData => ({
   question: '',
-  instructions: '',
+  instructions: undefined,
   options: [
-    { id: generateId(), text: '', imageUrl: '', imageAlt: '', explanation: '' },
-    { id: generateId(), text: '', imageUrl: '', imageAlt: '', explanation: '' },
-    { id: generateId(), text: '', imageUrl: '', imageAlt: '', explanation: '' }
+    createEmptyOption(),
+    createEmptyOption(),
+    createEmptyOption(),
+    createEmptyOption(),
   ],
   correctAnswers: [],
   explanation: '',
+  points: 1,
+  difficulty: 'MEDIUM',
+  timeLimit: undefined,
   hints: [],
-  points: 10,
-  minSelections: undefined,
+  minSelections: 1,
   maxSelections: undefined,
-  exactSelections: undefined,
+  partialCredit: false,
+  penalizeIncorrect: false,
   shuffleOptions: false,
-  allowPartialCredit: true,
-  showExplanation: true,
-  penalizeIncorrect: false
-})
+  showExplanationAfter: true,
+  tags: [],
+});
 
 const validateFormData = (data: CheckboxFormData): string[] => {
-  const errors: string[] = []
+  const errors: string[] = [];
   
-  // Check if at least one option has text
-  const hasValidOptions = data.options.some(opt => opt.text.trim().length > 0)
-  if (!hasValidOptions) {
-    errors.push('At least one option must have text')
+  // Check if all options have text
+  const emptyOptions = data.options.filter(opt => !opt.text.trim());
+  if (emptyOptions.length > 0) {
+    errors.push('All options must have text');
   }
   
-  // Check if correct answers exist and are valid
+  // Check if at least one correct answer is selected
   if (data.correctAnswers.length === 0) {
-    errors.push('At least one correct answer must be selected')
+    errors.push('At least one correct answer must be selected');
   }
   
-  // Validate correct answer IDs exist in options
-  const optionIds = data.options.map(opt => opt.id)
-  const invalidCorrectAnswers = data.correctAnswers.filter(id => !optionIds.includes(id))
+  // Check if correct answers are valid
+  const validOptionIds = data.options.map(opt => opt.id);
+  const invalidCorrectAnswers = data.correctAnswers.filter(id => !validOptionIds.includes(id));
   if (invalidCorrectAnswers.length > 0) {
-    errors.push('Some correct answers reference invalid options')
+    errors.push('Invalid correct answer selection');
   }
   
-  // Validate selection constraints
-  if (data.minSelections && data.maxSelections && data.minSelections > data.maxSelections) {
-    errors.push('Minimum selections cannot be greater than maximum selections')
-  }
-  
-  if (data.exactSelections) {
-    if (data.minSelections || data.maxSelections) {
-      errors.push('Cannot use exact selections with min/max selections')
-    }
-    if (data.exactSelections > data.options.length) {
-      errors.push('Exact selections cannot exceed number of options')
+  // Check selection constraints
+  if (data.minSelections !== undefined && data.maxSelections !== undefined) {
+    if (data.minSelections > data.maxSelections) {
+      errors.push('Minimum selections cannot be greater than maximum selections');
     }
   }
   
-  return errors
-}
+  if (data.minSelections !== undefined && data.minSelections > data.correctAnswers.length) {
+    errors.push('Minimum selections cannot be greater than number of correct answers');
+  }
+  
+  return errors;
+};
 
 const calculateScorePreview = (
-  correctAnswers: string[],
-  totalOptions: number,
-  allowPartialCredit: boolean,
+  correctAnswers: number,
+  incorrectAnswers: number,
+  totalCorrect: number,
+  totalPoints: number,
+  partialCredit: boolean,
   penalizeIncorrect: boolean
-): { maxScore: number; partialExample: number } => {
-  const maxScore = 100
-  
-  if (!allowPartialCredit) {
-    return { maxScore, partialExample: 0 }
+): number => {
+  if (!partialCredit) {
+    // All or nothing scoring
+    return incorrectAnswers === 0 && correctAnswers === totalCorrect ? totalPoints : 0;
   }
   
-  // Example: 3 correct out of 4 correct answers
-  const exampleCorrect = Math.max(1, correctAnswers.length - 1)
-  const exampleIncorrect = penalizeIncorrect ? 1 : 0
+  // Partial credit scoring
+  let score = (correctAnswers / totalCorrect) * totalPoints;
   
-  const score = Math.max(0, (exampleCorrect - exampleIncorrect) / correctAnswers.length * maxScore)
+  if (penalizeIncorrect) {
+    const penalty = (incorrectAnswers / totalCorrect) * totalPoints;
+    score = Math.max(0, score - penalty);
+  }
   
-  return { maxScore, partialExample: Math.round(score) }
-}
+  return Math.round(score * 100) / 100;
+};
 
 // =================================================================
-// 🎯 SUB-COMPONENTS
+// 🎯 SORTABLE OPTION ITEM COMPONENT
 // =================================================================
 
-function OptionItem({ 
-  option, 
-  index, 
-  isCorrect, 
-  onEdit, 
-  onDelete, 
-  onToggleCorrect, 
-  isDragDisabled = false 
-}: OptionItemProps) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [editText, setEditText] = useState(option.text)
+function SortableOptionItem({
+  id,
+  option,
+  index,
+  isCorrect,
+  onUpdate,
+  onDelete,
+  onToggleCorrect,
+  disabled = false,
+  showWeight = false,
+}: SortableOptionItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging: isSortableDragging,
+  } = useSortable({
+    id: id,
+    disabled: disabled,
+  });
 
-  const handleSaveEdit = () => {
-    if (editText.trim()) {
-      onEdit(index, { ...option, text: editText.trim() })
-      setIsEditing(false)
-    }
-  }
-
-  const handleCancelEdit = () => {
-    setEditText(option.text)
-    setIsEditing(false)
-  }
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isSortableDragging ? 0.5 : 1,
+  };
 
   return (
-    <Draggable draggableId={option.id} index={index} isDragDisabled={isDragDisabled}>
-      {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          className={cn(
-            "group p-4 border rounded-lg transition-all duration-200",
-            snapshot.isDragging && "shadow-lg rotate-1 scale-105",
-            isCorrect && "border-green-500 bg-green-50",
-            !isCorrect && "border-gray-200 bg-white hover:border-blue-300"
-          )}
-        >
-          <div className="flex items-start gap-3">
-            {/* Drag Handle */}
-            {!isDragDisabled && (
-              <div {...provided.dragHandleProps} className="mt-1 cursor-grab active:cursor-grabbing">
-                <GripVertical className="w-4 h-4 text-gray-400" />
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "group relative p-4 border rounded-lg transition-all duration-200",
+        isCorrect ? "border-green-500 bg-green-50" : "border-gray-200 bg-white",
+        isSortableDragging && "shadow-lg",
+        disabled && "opacity-60"
+      )}
+    >
+      {/* Drag Handle */}
+      <div
+        className="absolute left-2 top-1/2 -translate-y-1/2 cursor-move"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+      </div>
+
+      {/* Option Content */}
+      <div className="ml-8 space-y-3">
+        <div className="flex items-start gap-3">
+          {/* Checkbox Indicator */}
+          <div
+            onClick={onToggleCorrect}
+            className="mt-1 cursor-pointer"
+          >
+            {isCorrect ? (
+              <CheckSquare2 className="w-5 h-5 text-green-600" />
+            ) : (
+              <Square className="w-5 h-5 text-gray-400 hover:text-gray-600" />
+            )}
+          </div>
+
+          {/* Option Text */}
+          <div className="flex-1 space-y-2">
+            <Input
+              value={option.text}
+              onChange={(e) => onUpdate('text', e.target.value)}
+              placeholder={`Option ${index + 1} text...`}
+              disabled={disabled}
+              className="w-full"
+            />
+            
+            {/* Option Explanation (optional) */}
+            <Textarea
+              value={option.explanation || ''}
+              onChange={(e) => onUpdate('explanation', e.target.value)}
+              placeholder="Explanation for this option (optional)..."
+              disabled={disabled}
+              className="w-full min-h-[60px] text-sm"
+              rows={2}
+            />
+            
+            {/* Weight for Partial Credit (optional) */}
+            {showWeight && (
+              <div className="flex items-center gap-2">
+                <Label htmlFor={`weight-${option.id}`} className="text-sm">
+                  Weight:
+                </Label>
+                <Input
+                  id={`weight-${option.id}`}
+                  type="number"
+                  min={0}
+                  max={10}
+                  step={0.1}
+                  value={option.weight || 1}
+                  onChange={(e) => onUpdate('weight', parseFloat(e.target.value) || 1)}
+                  disabled={disabled}
+                  className="w-20"
+                />
               </div>
             )}
-
-            {/* Option Letter */}
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-sm font-medium">
-              {String.fromCharCode(65 + index)}
-            </div>
-
-            {/* Checkbox */}
-            <div className="mt-1">
-              <Checkbox
-                checked={isCorrect}
-                onCheckedChange={() => onToggleCorrect(index)}
-                className={isCorrect ? "border-green-500 data-[state=checked]:bg-green-500" : ""}
-              />
-            </div>
-
-            {/* Option Content */}
-            <div className="flex-1 min-w-0">
-              {isEditing ? (
-                <div className="space-y-2">
-                  <Input
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    placeholder="Enter option text..."
-                    className="w-full"
-                    autoFocus
-                  />
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleSaveEdit}>
-                      <Save className="w-3 h-3 mr-1" />
-                      Save
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={handleCancelEdit}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className={cn(
-                      "text-sm",
-                      option.text.trim() ? "text-gray-900" : "text-gray-400 italic"
-                    )}>
-                      {option.text.trim() || "Enter option text..."}
-                    </span>
-                    
-                    {isCorrect && (
-                      <Badge className="bg-green-100 text-green-800">
-                        <CheckCircle2 className="w-3 h-3 mr-1" />
-                        Correct
-                      </Badge>
-                    )}
-                  </div>
-
-                  {option.imageUrl && (
-                    <img 
-                      src={option.imageUrl} 
-                      alt={option.imageAlt || `Option ${String.fromCharCode(65 + index)}`}
-                      className="max-w-20 max-h-20 object-contain rounded border"
-                    />
-                  )}
-
-                  {option.explanation && (
-                    <p className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
-                      <strong>Explanation:</strong> {option.explanation}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => setIsEditing(true)}
-                disabled={isEditing}
-              >
-                <Edit3 className="w-3 h-3" />
-              </Button>
-              
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => onDelete(index)}
-                className="text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="w-3 h-3" />
-              </Button>
-            </div>
           </div>
-        </div>
-      )}
-    </Draggable>
-  )
-}
 
-function SelectionConstraints({ 
-  minSelections, 
-  maxSelections, 
-  exactSelections, 
-  onMinChange, 
-  onMaxChange, 
-  onExactChange, 
-  totalOptions 
-}: SelectionConstraintsProps) {
-  return (
-    <div className="space-y-4">
-      <Label className="text-sm font-medium flex items-center gap-2">
-        <Settings className="w-4 h-4" />
-        Selection Constraints
-      </Label>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Minimum Selections */}
-        <div className="space-y-2">
-          <Label className="text-xs text-gray-600">Minimum Selections</Label>
-          <Input
-            type="number"
-            min="0"
-            max={totalOptions}
-            value={minSelections || ''}
-            onChange={(e) => onMinChange(e.target.value ? parseInt(e.target.value) : undefined)}
-            placeholder="Optional"
-            className="w-full"
-            disabled={!!exactSelections}
-          />
+          {/* Delete Button */}
+          {index > 1 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onDelete}
+              disabled={disabled}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
         </div>
-
-        {/* Maximum Selections */}
-        <div className="space-y-2">
-          <Label className="text-xs text-gray-600">Maximum Selections</Label>
-          <Input
-            type="number"
-            min="1"
-            max={totalOptions}
-            value={maxSelections || ''}
-            onChange={(e) => onMaxChange(e.target.value ? parseInt(e.target.value) : undefined)}
-            placeholder="Optional"
-            className="w-full"
-            disabled={!!exactSelections}
-          />
-        </div>
-
-        {/* Exact Selections */}
-        <div className="space-y-2">
-          <Label className="text-xs text-gray-600">Exact Selections</Label>
-          <Input
-            type="number"
-            min="1"
-            max={totalOptions}
-            value={exactSelections || ''}
-            onChange={(e) => onExactChange(e.target.value ? parseInt(e.target.value) : undefined)}
-            placeholder="Optional"
-            className="w-full"
-          />
-        </div>
-      </div>
-      
-      <div className="text-xs text-gray-500 space-y-1">
-        <p>• <strong>Minimum:</strong> Students must select at least this many options</p>
-        <p>• <strong>Maximum:</strong> Students can select at most this many options</p>
-        <p>• <strong>Exact:</strong> Students must select exactly this many options (overrides min/max)</p>
       </div>
     </div>
-  )
+  );
 }
 
-function QuestionPreviewPanel({ question, isVisible }: QuestionPreview) {
-  if (!isVisible) return null
+// =================================================================
+// 🎯 DRAG OVERLAY ITEM
+// =================================================================
 
-  const scorePreview = calculateScorePreview(
-    question.correctAnswers || [],
-    question.options.length,
-    question.allowPartialCredit || false,
-    question.penalizeIncorrect || false
-  )
+function DragOverlayOption({ option, index }: { option: CheckboxOption; index: number }) {
+  return (
+    <div className="p-4 border rounded-lg bg-white shadow-lg">
+      <div className="flex items-center gap-3">
+        <GripVertical className="w-4 h-4 text-gray-400" />
+        <Square className="w-5 h-5 text-gray-400" />
+        <span className="text-sm font-medium">{option.text || `Option ${index + 1}`}</span>
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// 🎯 SELECTION CONSTRAINTS COMPONENT
+// =================================================================
+
+function SelectionConstraints({
+  minSelections,
+  maxSelections,
+  totalOptions,
+  onMinChange,
+  onMaxChange,
+}: SelectionConstraintsProps) {
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-2">
+        <Label htmlFor="minSelections">Minimum Selections</Label>
+        <Input
+          id="minSelections"
+          type="number"
+          min={1}
+          max={totalOptions}
+          value={minSelections || ''}
+          onChange={(e) => onMinChange(e.target.value ? parseInt(e.target.value) : undefined)}
+          placeholder="1"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="maxSelections">Maximum Selections</Label>
+        <Input
+          id="maxSelections"
+          type="number"
+          min={1}
+          max={totalOptions}
+          value={maxSelections || ''}
+          onChange={(e) => onMaxChange(e.target.value ? parseInt(e.target.value) : undefined)}
+          placeholder={`${totalOptions} (no limit)`}
+        />
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// 🎯 PREVIEW PANEL COMPONENT
+// =================================================================
+
+function QuestionPreviewPanel({ 
+  question, 
+  isVisible 
+}: { 
+  question: QuestionPreview; 
+  isVisible: boolean;
+}) {
+  if (!isVisible) return null;
+
+  const correctCount = question.correctAnswers.length;
+  const totalOptions = question.options.length;
 
   return (
-    <Card className="mt-6">
-      <CardHeader>
+    <Card className="mt-6 border-2 border-blue-200">
+      <CardHeader className="bg-blue-50">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Eye className="w-5 h-5 text-blue-600" />
           Question Preview
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Question */}
         <div className="prose prose-sm max-w-none">
           <h4 className="text-base font-medium text-gray-900">
             {question.question || "Question text will appear here..."}
@@ -471,27 +506,24 @@ function QuestionPreviewPanel({ question, isVisible }: QuestionPreview) {
               <strong>Instructions:</strong> {question.instructions}
             </p>
           )}
+          
+          {(question.minSelections || question.maxSelections) && (
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <Info className="w-4 h-4" />
+              <span>
+                Select {question.minSelections || 1}
+                {question.maxSelections && question.maxSelections !== totalOptions 
+                  ? ` to ${question.maxSelections}` 
+                  : ' or more'} options
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* Selection Requirements */}
-        <div className="flex items-center gap-4 text-sm">
-          {question.exactSelections && (
-            <Badge variant="outline">Exactly {question.exactSelections} selections required</Badge>
-          )}
-          {question.minSelections && !question.exactSelections && (
-            <Badge variant="outline">Min {question.minSelections} selections</Badge>
-          )}
-          {question.maxSelections && !question.exactSelections && (
-            <Badge variant="outline">Max {question.maxSelections} selections</Badge>
-          )}
-          <Badge className="bg-blue-100 text-blue-800">{question.points} points</Badge>
-        </div>
-
-        {/* Options */}
         <div className="space-y-2">
           <h5 className="text-sm font-medium text-gray-700">Options:</h5>
           {question.options.map((option, index) => {
-            const isCorrect = question.correctAnswers?.includes(option.id)
+            const isCorrect = question.correctAnswers.includes(option.id);
             return (
               <div 
                 key={option.id}
@@ -500,40 +532,35 @@ function QuestionPreviewPanel({ question, isVisible }: QuestionPreview) {
                   isCorrect ? "border-green-500 bg-green-50" : "border-gray-200"
                 )}
               >
-                <Checkbox 
-                  checked={isCorrect} 
-                  className={isCorrect ? "border-green-500 data-[state=checked]:bg-green-500" : ""}
+                <Checkbox
+                  checked={isCorrect}
+                  disabled
+                  className="pointer-events-none"
                 />
-                <span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium">
-                  {String.fromCharCode(65 + index)}
-                </span>
                 <span className="flex-1 text-sm">
-                  {option.text || `Option ${String.fromCharCode(65 + index)}`}
+                  {option.text || `Option ${index + 1}`}
+                  {question.partialCredit && option.weight && option.weight !== 1 && (
+                    <span className="ml-2 text-xs text-gray-500">
+                      (weight: {option.weight})
+                    </span>
+                  )}
                 </span>
                 {isCorrect && (
-                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                  <CheckSquare2 className="w-4 h-4 text-green-600" />
                 )}
               </div>
-            )
+            );
           })}
         </div>
 
-        {/* Scoring Preview */}
+        {/* Scoring Info */}
         <div className="p-3 bg-gray-50 rounded">
-          <h5 className="text-sm font-medium text-gray-700 mb-2">Scoring Preview:</h5>
-          <div className="space-y-1 text-sm">
-            <div className="flex justify-between">
-              <span>Maximum Score:</span>
-              <span className="font-medium">{scorePreview.maxScore}%</span>
-            </div>
-            {question.allowPartialCredit && (
-              <div className="flex justify-between">
-                <span>Partial Credit Example:</span>
-                <span className="text-yellow-600">{scorePreview.partialExample}%</span>
-              </div>
-            )}
-            <div className="text-xs text-gray-600">
-              {question.allowPartialCredit 
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <Calculator className="w-4 h-4" />
+            <div>
+              <strong>Scoring:</strong>{' '}
+              {correctCount} correct answer{correctCount !== 1 ? 's' : ''} • {' '}
+              {question.partialCredit 
                 ? "Partial credit based on correct selections"
                 : "All or nothing scoring"
               }
@@ -551,7 +578,7 @@ function QuestionPreviewPanel({ question, isVisible }: QuestionPreview) {
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 // =================================================================
@@ -567,8 +594,32 @@ function CheckboxBuilder({
   className
 }: CheckboxBuilderProps) {
   // State Management
-  const [showPreview, setShowPreview] = useState(false)
-  const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const [showPreview, setShowPreview] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  
+  // DND-Kit Sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Drop animation config
+  const dropAnimationConfig: DropAnimation = {
+    sideEffects: defaultDropAnimationSideEffects({
+      styles: {
+        active: {
+          opacity: '0.5',
+        },
+      },
+    }),
+  };
   
   // Form Setup
   const {
@@ -584,89 +635,102 @@ function CheckboxBuilder({
       ...initialData
     },
     mode: 'onChange'
-  })
+  });
 
-  const watchedData = watch()
+  const watchedData = watch();
 
   // Event Handlers
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id);
+  };
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    setActiveId(null);
+
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = watchedData.options.findIndex(opt => opt.id === active.id);
+    const newIndex = watchedData.options.findIndex(opt => opt.id === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newOptions = [...watchedData.options];
+      const [movedItem] = newOptions.splice(oldIndex, 1);
+      newOptions.splice(newIndex, 0, movedItem);
+
+      setValue('options', newOptions);
+    }
+  }, [watchedData.options, setValue]);
+
   const handleAddOption = useCallback(() => {
     if (watchedData.options.length >= 15) {
-      toast.error('Maximum 15 options allowed')
-      return
+      toast.error('Maximum 15 options allowed');
+      return;
     }
 
-    const newOptions = [...watchedData.options, createEmptyOption()]
-    setValue('options', newOptions)
-    toast.success('Option added')
-  }, [watchedData.options, setValue])
+    const newOptions = [...watchedData.options, createEmptyOption()];
+    setValue('options', newOptions);
+    toast.success('Option added');
+  }, [watchedData.options, setValue]);
 
   const handleDeleteOption = useCallback((index: number) => {
     if (watchedData.options.length <= 2) {
-      toast.error('Minimum 2 options required')
-      return
+      toast.error('Minimum 2 options required');
+      return;
     }
 
-    const optionToDelete = watchedData.options[index]
-    const newOptions = watchedData.options.filter((_, i) => i !== index)
-    setValue('options', newOptions)
+    const optionToDelete = watchedData.options[index];
+    const newOptions = watchedData.options.filter((_, i) => i !== index);
+    setValue('options', newOptions);
 
     // Remove from correct answers if it was selected
-    const newCorrectAnswers = watchedData.correctAnswers.filter(id => id !== optionToDelete.id)
-    setValue('correctAnswers', newCorrectAnswers)
+    const newCorrectAnswers = watchedData.correctAnswers.filter(id => id !== optionToDelete.id);
+    setValue('correctAnswers', newCorrectAnswers);
 
-    toast.success('Option deleted')
-  }, [watchedData.options, watchedData.correctAnswers, setValue])
+    toast.success('Option deleted');
+  }, [watchedData.options, watchedData.correctAnswers, setValue]);
 
-  const handleEditOption = useCallback((index: number, updatedOption: CheckboxOption) => {
-    const newOptions = [...watchedData.options]
-    newOptions[index] = updatedOption
-    setValue('options', newOptions)
-  }, [watchedData.options, setValue])
+  const handleUpdateOption = useCallback((index: number, field: keyof CheckboxOption, value: string | number) => {
+    const newOptions = [...watchedData.options];
+    newOptions[index] = { ...newOptions[index], [field]: value };
+    setValue('options', newOptions);
+  }, [watchedData.options, setValue]);
 
   const handleToggleCorrectAnswer = useCallback((index: number) => {
-    const option = watchedData.options[index]
-    const isCurrentlyCorrect = watchedData.correctAnswers.includes(option.id)
+    const option = watchedData.options[index];
+    const isCurrentlyCorrect = watchedData.correctAnswers.includes(option.id);
     
-    let newCorrectAnswers: string[]
+    let newCorrectAnswers: string[];
     if (isCurrentlyCorrect) {
-      newCorrectAnswers = watchedData.correctAnswers.filter(id => id !== option.id)
+      newCorrectAnswers = watchedData.correctAnswers.filter(id => id !== option.id);
     } else {
-      newCorrectAnswers = [...watchedData.correctAnswers, option.id]
+      newCorrectAnswers = [...watchedData.correctAnswers, option.id];
     }
     
-    setValue('correctAnswers', newCorrectAnswers)
-  }, [watchedData.options, watchedData.correctAnswers, setValue])
-
-  const handleReorderOptions = useCallback((result: DropResult) => {
-    if (!result.destination) return
-
-    const items = Array.from(watchedData.options)
-    const [reorderedItem] = items.splice(result.source.index, 1)
-    items.splice(result.destination.index, 0, reorderedItem)
-
-    setValue('options', items)
-  }, [watchedData.options, setValue])
+    setValue('correctAnswers', newCorrectAnswers);
+  }, [watchedData.options, watchedData.correctAnswers, setValue]);
 
   const handleAddHint = useCallback(() => {
-    const newHints = [...(watchedData.hints || []), '']
-    setValue('hints', newHints)
-  }, [watchedData.hints, setValue])
+    const newHints = [...(watchedData.hints || []), ''];
+    setValue('hints', newHints);
+  }, [watchedData.hints, setValue]);
 
   const handleDeleteHint = useCallback((index: number) => {
-    const newHints = (watchedData.hints || []).filter((_, i) => i !== index)
-    setValue('hints', newHints)
-  }, [watchedData.hints, setValue])
+    const newHints = (watchedData.hints || []).filter((_, i) => i !== index);
+    setValue('hints', newHints);
+  }, [watchedData.hints, setValue]);
 
   const onSubmit = useCallback((data: CheckboxFormData) => {
-    const customErrors = validateFormData(data)
+    const customErrors = validateFormData(data);
     
     if (customErrors.length > 0) {
-      setValidationErrors(customErrors)
-      toast.error('Please fix validation errors')
-      return
+      setValidationErrors(customErrors);
+      toast.error('Please fix validation errors');
+      return;
     }
 
-    setValidationErrors([])
+    setValidationErrors([]);
 
     const question: CheckboxQuestion = {
       id: initialData?.id || generateId(),
@@ -674,11 +738,11 @@ function CheckboxBuilder({
       ...data,
       createdAt: initialData?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
-    }
+    };
 
-    onSave(question)
-    toast.success(isEditing ? 'Question updated' : 'Question created')
-  }, [initialData, onSave, isEditing])
+    onSave(question);
+    toast.success(isEditing ? 'Question updated' : 'Question created');
+  }, [initialData, onSave, isEditing]);
 
   const handlePreview = useCallback(() => {
     if (onPreview && isValid) {
@@ -688,14 +752,21 @@ function CheckboxBuilder({
         ...watchedData,
         createdAt: initialData?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
-      }
-      onPreview(question)
+      };
+      onPreview(question);
     }
-  }, [onPreview, isValid, watchedData, initialData])
+  }, [onPreview, isValid, watchedData, initialData]);
 
   // Computed values
-  const correctCount = watchedData.correctAnswers.length
-  const totalOptions = watchedData.options.length
+  const correctCount = watchedData.correctAnswers.length;
+  const totalOptions = watchedData.options.length;
+
+  const activeOption = activeId 
+    ? watchedData.options.find(opt => opt.id === activeId)
+    : null;
+  const activeIndex = activeId
+    ? watchedData.options.findIndex(opt => opt.id === activeId)
+    : -1;
 
   return (
     <Card className={cn("w-full max-w-4xl mx-auto", className)}>
@@ -706,26 +777,27 @@ function CheckboxBuilder({
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="space-y-6">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Validation Errors */}
-          {validationErrors.length > 0 && (
-            <Alert className="border-red-200 bg-red-50">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-800">
-                <ul className="list-disc list-inside space-y-1">
-                  {validationErrors.map((error, index) => (
-                    <li key={index}>{error}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
+      <CardContent>
+        {/* Validation Errors */}
+        {validationErrors.length > 0 && (
+          <Alert className="mb-6 border-red-200 bg-red-50">
+            <AlertCircle className="w-4 h-4 text-red-600" />
+            <div className="ml-2">
+              <div className="font-medium text-sm text-red-800">Validation Errors:</div>
+              {validationErrors.map((error, index) => (
+                <AlertDescription key={index} className="text-sm text-red-700">
+                  • {error}
+                </AlertDescription>
+              ))}
+            </div>
+          </Alert>
+        )}
 
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Question Text */}
           <div className="space-y-2">
-            <Label htmlFor="question" className="text-sm font-medium">
-              Question <span className="text-red-500">*</span>
+            <Label htmlFor="question" className="required">
+              Question Text
             </Label>
             <Controller
               name="question"
@@ -734,12 +806,9 @@ function CheckboxBuilder({
                 <Textarea
                   {...field}
                   id="question"
-                  placeholder="Enter your multiple selection question..."
+                  placeholder="Enter your question here..."
+                  className="min-h-[100px]"
                   rows={3}
-                  className={cn(
-                    "transition-all duration-200 focus:ring-2 focus:ring-blue-500",
-                    errors.question && "border-red-500"
-                  )}
                 />
               )}
             />
@@ -748,9 +817,9 @@ function CheckboxBuilder({
             )}
           </div>
 
-          {/* Instructions */}
+          {/* Instructions (Optional) */}
           <div className="space-y-2">
-            <Label htmlFor="instructions" className="text-sm font-medium">
+            <Label htmlFor="instructions">
               Instructions (Optional)
             </Label>
             <Controller
@@ -760,23 +829,18 @@ function CheckboxBuilder({
                 <Textarea
                   {...field}
                   id="instructions"
-                  placeholder="Additional instructions for students..."
+                  placeholder="Any special instructions for this question..."
+                  className="min-h-[60px]"
                   rows={2}
-                  className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                 />
               )}
             />
           </div>
 
-          {/* Options */}
-          <div className="space-y-4">
+          {/* Options with Drag & Drop */}
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">
-                Answer Options <span className="text-red-500">*</span>
-                <Badge variant="outline" className="ml-2">
-                  {correctCount} of {totalOptions} correct
-                </Badge>
-              </Label>
+              <Label className="required">Answer Options</Label>
               <Button
                 type="button"
                 variant="outline"
@@ -789,134 +853,82 @@ function CheckboxBuilder({
               </Button>
             </div>
 
-            <DragDropContext onDragEnd={handleReorderOptions}>
-              <Droppable droppableId="options">
-                {(provided) => (
-                  <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
-                    {watchedData.options.map((option, index) => (
-                      <OptionItem
-                        key={option.id}
-                        option={option}
-                        index={index}
-                        isCorrect={watchedData.correctAnswers.includes(option.id)}
-                        onEdit={handleEditOption}
-                        onDelete={handleDeleteOption}
-                        onToggleCorrect={handleToggleCorrectAnswer}
-                      />
-                    ))}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            </DragDropContext>
+            <div className="text-sm text-gray-600 mb-2">
+              Select {correctCount} correct answer{correctCount !== 1 ? 's' : ''} from {totalOptions} option{totalOptions !== 1 ? 's' : ''}
+            </div>
+
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={watchedData.options.map(opt => opt.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3">
+                  {watchedData.options.map((option, index) => (
+                    <SortableOptionItem
+                      key={option.id}
+                      id={option.id}
+                      option={option}
+                      index={index}
+                      isCorrect={watchedData.correctAnswers.includes(option.id)}
+                      onUpdate={(field, value) => handleUpdateOption(index, field, value)}
+                      onDelete={() => handleDeleteOption(index)}
+                      onToggleCorrect={() => handleToggleCorrectAnswer(index)}
+                      disabled={false}
+                      showWeight={watchedData.partialCredit}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+
+              <DragOverlay dropAnimation={dropAnimationConfig}>
+                {activeId && activeOption && activeIndex !== -1 ? (
+                  <DragOverlayOption option={activeOption} index={activeIndex} />
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+
+            {errors.options && (
+              <p className="text-sm text-red-600">{errors.options.message}</p>
+            )}
+            {errors.correctAnswers && (
+              <p className="text-sm text-red-600">{errors.correctAnswers.message}</p>
+            )}
           </div>
 
-          <Separator />
-
           {/* Selection Constraints */}
-          <SelectionConstraints
-            minSelections={watchedData.minSelections}
-            maxSelections={watchedData.maxSelections}
-            exactSelections={watchedData.exactSelections}
-            onMinChange={(value) => setValue('minSelections', value)}
-            onMaxChange={(value) => setValue('maxSelections', value)}
-            onExactChange={(value) => setValue('exactSelections', value)}
-            totalOptions={totalOptions}
-          />
-
-          <Separator />
-
-          {/* Settings */}
-          <div className="space-y-4">
-            <Label className="text-sm font-medium">Question Settings</Label>
+          <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-700">Selection Constraints</h4>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Points */}
-              <div className="space-y-2">
-                <Label htmlFor="points" className="text-sm">Points</Label>
+            <Controller
+              name="minSelections"
+              control={control}
+              render={({ field }) => (
                 <Controller
-                  name="points"
+                  name="maxSelections"
                   control={control}
-                  render={({ field }) => (
-                    <Input
-                      {...field}
-                      id="points"
-                      type="number"
-                      min="1"
-                      max="100"
-                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                      className="w-full"
+                  render={({ field: maxField }) => (
+                    <SelectionConstraints
+                      minSelections={field.value}
+                      maxSelections={maxField.value}
+                      totalOptions={watchedData.options.length}
+                      onMinChange={field.onChange}
+                      onMaxChange={maxField.onChange}
                     />
                   )}
                 />
-              </div>
-
-              {/* Shuffle Options */}
-              <div className="flex items-center space-x-2">
-                <Controller
-                  name="shuffleOptions"
-                  control={control}
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  )}
-                />
-                <Label className="text-sm">Shuffle Options</Label>
-              </div>
-
-              {/* Allow Partial Credit */}
-              <div className="flex items-center space-x-2">
-                <Controller
-                  name="allowPartialCredit"
-                  control={control}
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  )}
-                />
-                <Label className="text-sm">Allow Partial Credit</Label>
-              </div>
-
-              {/* Show Explanation */}
-              <div className="flex items-center space-x-2">
-                <Controller
-                  name="showExplanation"
-                  control={control}
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  )}
-                />
-                <Label className="text-sm">Show Explanation</Label>
-              </div>
-
-              {/* Penalize Incorrect */}
-              <div className="flex items-center space-x-2">
-                <Controller
-                  name="penalizeIncorrect"
-                  control={control}
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  )}
-                />
-                <Label className="text-sm">Penalize Incorrect</Label>
-              </div>
-            </div>
+              )}
+            />
           </div>
 
           {/* Explanation */}
           <div className="space-y-2">
-            <Label htmlFor="explanation" className="text-sm font-medium">
-              Explanation (Optional)
+            <Label htmlFor="explanation">
+              Explanation (shown after answering)
             </Label>
             <Controller
               name="explanation"
@@ -926,24 +938,162 @@ function CheckboxBuilder({
                   {...field}
                   id="explanation"
                   placeholder="Explain the correct answers..."
+                  className="min-h-[80px]"
                   rows={3}
-                  className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                 />
               )}
             />
           </div>
 
+          {/* Points & Difficulty */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="points" className="required">Points</Label>
+              <Controller
+                name="points"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id="points"
+                    type="number"
+                    min={1}
+                    max={100}
+                    onChange={(e) => field.onChange(parseInt(e.target.value))}
+                  />
+                )}
+              />
+              {errors.points && (
+                <p className="text-sm text-red-600">{errors.points.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="difficulty" className="required">Difficulty</Label>
+              <Controller
+                name="difficulty"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id="difficulty">
+                      <SelectValue placeholder="Select difficulty" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EASY">Easy</SelectItem>
+                      <SelectItem value="MEDIUM">Medium</SelectItem>
+                      <SelectItem value="HARD">Hard</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Time Limit (Optional) */}
+          <div className="space-y-2">
+            <Label htmlFor="timeLimit">Time Limit (seconds, optional)</Label>
+            <Controller
+              name="timeLimit"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  id="timeLimit"
+                  type="number"
+                  min={10}
+                  placeholder="No time limit"
+                  onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                />
+              )}
+            />
+          </div>
+
+          {/* Scoring Options */}
+          <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-700">Scoring Options</h4>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="partialCredit">Partial Credit</Label>
+                  <p className="text-xs text-gray-500">Award points for each correct selection</p>
+                </div>
+                <Controller
+                  name="partialCredit"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="partialCredit"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+              </div>
+
+              {watchedData.partialCredit && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label htmlFor="penalizeIncorrect">Penalize Incorrect</Label>
+                    <p className="text-xs text-gray-500">Deduct points for incorrect selections</p>
+                  </div>
+                  <Controller
+                    name="penalizeIncorrect"
+                    control={control}
+                    render={({ field }) => (
+                      <Switch
+                        id="penalizeIncorrect"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    )}
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="shuffleOptions">Shuffle Options</Label>
+                <Controller
+                  name="shuffleOptions"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="shuffleOptions"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showExplanationAfter">Show Explanation After Answer</Label>
+                <Controller
+                  name="showExplanationAfter"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="showExplanationAfter"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Hints */}
-          <div className="space-y-4">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Hints (Optional)</Label>
+              <Label>Hints (Optional)</Label>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={handleAddHint}
               >
-                <Plus className="w-4 h-4 mr-1" />
+                <Lightbulb className="w-4 h-4 mr-1" />
                 Add Hint
               </Button>
             </div>
@@ -951,13 +1101,13 @@ function CheckboxBuilder({
             {watchedData.hints && watchedData.hints.length > 0 && (
               <div className="space-y-2">
                 {watchedData.hints.map((hint, index) => (
-                  <div key={index} className="flex gap-2">
+                  <div key={index} className="flex items-center gap-2">
                     <Input
                       value={hint}
                       onChange={(e) => {
-                        const newHints = [...watchedData.hints!]
-                        newHints[index] = e.target.value
-                        setValue('hints', newHints)
+                        const newHints = [...watchedData.hints!];
+                        newHints[index] = e.target.value;
+                        setValue('hints', newHints);
                       }}
                       placeholder={`Hint ${index + 1}...`}
                       className="flex-1"
@@ -1035,19 +1185,19 @@ function CheckboxBuilder({
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 // Component Display Name
-CheckboxBuilder.displayName = 'CheckboxBuilder'
+CheckboxBuilder.displayName = 'CheckboxBuilder';
 
 // =================================================================
 // 🎯 EXPORTS
 // =================================================================
 
-export default CheckboxBuilder
+export default CheckboxBuilder;
 export { 
-  OptionItem,
+  SortableOptionItem as OptionItem,
   SelectionConstraints,
   QuestionPreviewPanel,
   generateId,
@@ -1059,4 +1209,4 @@ export {
   type OptionItemProps,
   type SelectionConstraintsProps,
   type QuestionPreview
-}
+};

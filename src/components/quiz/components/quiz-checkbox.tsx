@@ -1,90 +1,104 @@
 // File: src/components/quiz/components/quiz-checkbox.tsx
 
-'use client'
+/**
+ * =================================================================
+ * ☑️ QUIZ CHECKBOX COMPONENT
+ * =================================================================
+ * Multiple Selection Question renderer dengan validation & feedback
+ * Created: July 2025
+ * Phase: 3 - Quiz Components
+ * Following Arctic Siberia Export Standard
+ * =================================================================
+ */
 
-// ✅ FIXED: Framework & Core Imports
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+'use client';
 
-// ✅ FIXED: UI Components menggunakan barrel imports dari index.ts
+// ✅ CATEGORY 1: Framework & Core Imports
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+
+// ✅ CATEGORY 2: UI Components - BARREL IMPORT dengan comment sesuai standard
+// ✅ FIXED: Menggunakan barrel imports dari index.ts
 import {
+  Alert,
+  AlertDescription,
+  Badge,
   Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
   Checkbox,
-  Badge,
-  Alert,
-  AlertDescription,
   Progress,
   Separator
-} from '@/components/ui'
+} from '@/components/ui';
 
-// Feature Components
-import { QuizProgress } from '../shared/quiz-progress'
-
-// Icons
+// ✅ CATEGORY 4: Icons - grouped together
 import { 
+  AlertTriangle,
   CheckCircle2, 
   CheckSquare, 
-  Square, 
-  RotateCcw, 
-  XCircle, 
-  AlertTriangle,
-  Target,
   Eye,
   EyeOff,
-  Shuffle
-} from 'lucide-react'
+  RotateCcw, 
+  Shuffle,
+  Square, 
+  Target,
+  XCircle
+} from 'lucide-react';
 
-// External Libraries  
-import { toast } from 'sonner'
+// ✅ CATEGORY 5: External Libraries
+import { toast } from 'sonner';
 
-// Local Utilities
-import { cn } from '@/lib/utils'
-
-// Types
+// ✅ CATEGORY 6: Local Utilities & Types
+import { cn } from '@/lib/utils';
 import type { 
   CheckboxQuestion, 
-  QuizAnswer, 
-  QuizAttemptResult,
-  CheckboxOption
-} from '../types'
+  CheckboxOption,
+  QuizAnswer
+} from '../types';
 
 // =================================================================
 // 🎯 INTERFACES & TYPES
 // =================================================================
 
 interface QuizCheckboxProps {
-  question: CheckboxQuestion
-  questionIndex: number
-  totalQuestions: number
-  value?: string[]
-  onChange: (value: string[]) => void
-  onSubmit: (answer: QuizAnswer) => void
-  isSubmitted?: boolean
-  result?: QuizAttemptResult
-  showCorrect?: boolean
-  timeLimit?: number
-  className?: string
+  question: CheckboxQuestion;
+  questionIndex?: number;
+  totalQuestions?: number;
+  value?: string[];
+  onChange: (value: string[]) => void;
+  onSubmit?: (answer: QuizAnswer) => void;
+  isSubmitted?: boolean;
+  showCorrect?: boolean;
+  showExplanation?: boolean;
+  timeLimit?: number;
+  className?: string;
+  readonly?: boolean;
 }
 
-interface CheckboxOptionProps {
-  option: CheckboxOption
-  index: number
-  isSelected: boolean
-  isCorrect?: boolean
-  isIncorrect?: boolean
-  showFeedback?: boolean
-  onToggle: (optionId: string) => void
-  disabled?: boolean
+interface CheckboxOptionItemProps {
+  option: CheckboxOption;
+  index: number;
+  isSelected: boolean;
+  isCorrect?: boolean;
+  showFeedback?: boolean;
+  onToggle: (optionId: string) => void;
+  disabled?: boolean;
+  className?: string;
 }
 
 interface SelectionStats {
-  selected: number
-  total: number
-  required: number
-  correct: number
+  selected: number;
+  total: number;
+  correct: number;
+  incorrect: number;
+  percentage: number;
+}
+
+interface ValidationResult {
+  isValid: boolean;
+  errors: string[];
+  warnings: string[];
 }
 
 // =================================================================
@@ -92,695 +106,492 @@ interface SelectionStats {
 // =================================================================
 
 const shuffleArray = <T>(array: T[]): T[] => {
-  const shuffled = [...array]
+  const shuffled = [...array];
   for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
-  return shuffled
-}
+  return shuffled;
+};
 
 const validateSelection = (
   selectedIds: string[], 
   question: CheckboxQuestion
-): { isValid: boolean; errors: string[] } => {
-  const errors: string[] = []
+): ValidationResult => {
+  const errors: string[] = [];
+  const warnings: string[] = [];
   
+  // Check minimum selections
   if (question.minSelections && selectedIds.length < question.minSelections) {
-    errors.push(`You must select at least ${question.minSelections} option${question.minSelections !== 1 ? 's' : ''}`)
+    errors.push(`You must select at least ${question.minSelections} option${question.minSelections !== 1 ? 's' : ''}`);
   }
   
+  // Check maximum selections
   if (question.maxSelections && selectedIds.length > question.maxSelections) {
-    errors.push(`You can select maximum ${question.maxSelections} option${question.maxSelections !== 1 ? 's' : ''}`)
+    errors.push(`You can select maximum ${question.maxSelections} option${question.maxSelections !== 1 ? 's' : ''}`);
   }
 
-  if (question.exactSelections && selectedIds.length !== question.exactSelections) {
-    errors.push(`You must select exactly ${question.exactSelections} option${question.exactSelections !== 1 ? 's' : ''}`)
+  // Check if no selections
+  if (selectedIds.length === 0) {
+    errors.push('You must select at least one option');
+  }
+
+  // Warning for many selections
+  if (selectedIds.length > Math.ceil(question.options.length / 2)) {
+    warnings.push('You have selected many options. Please review your choices.');
   }
 
   return {
     isValid: errors.length === 0,
-    errors
-  }
-}
+    errors,
+    warnings
+  };
+};
 
 const calculateScore = (
   selectedIds: string[], 
-  correctAnswers: string[]
-): { score: number; details: { correct: number; incorrect: number; missed: number } } => {
-  const selectedSet = new Set(selectedIds)
-  const correctSet = new Set(correctAnswers)
-  
-  let correct = 0
-  let incorrect = 0
-  let missed = 0
-
-  // Count correct selections
-  selectedIds.forEach(id => {
-    if (correctSet.has(id)) {
-      correct++
-    } else {
-      incorrect++
-    }
-  })
-
-  // Count missed correct answers
-  correctAnswers.forEach(id => {
-    if (!selectedSet.has(id)) {
-      missed++
-    }
-  })
-
-  // Calculate score (penalize incorrect selections)
-  const maxScore = correctAnswers.length
-  const rawScore = Math.max(0, correct - incorrect)
-  const score = maxScore > 0 ? (rawScore / maxScore) * 100 : 0
-
-  return {
-    score: Math.max(0, score),
-    details: { correct, incorrect, missed }
-  }
-}
-
-const getSelectionSummary = (
-  selectedIds: string[], 
-  question: CheckboxQuestion,
-  correctAnswers?: string[]
+  question: CheckboxQuestion
 ): SelectionStats => {
-  const correctCount = correctAnswers 
-    ? selectedIds.filter(id => correctAnswers.includes(id)).length
-    : 0
+  const correctOptions = question.options.filter(opt => opt.isCorrect);
+  const correctIds = correctOptions.map(opt => opt.id);
+  
+  const correctSelected = selectedIds.filter(id => correctIds.includes(id));
+  const incorrectSelected = selectedIds.filter(id => !correctIds.includes(id));
+  
+  const correct = correctSelected.length;
+  const incorrect = incorrectSelected.length;
+  const total = selectedIds.length;
+  
+  // Calculate percentage (partial credit)
+  const maxCorrect = correctIds.length;
+  const penalty = incorrect; // Penalty for wrong selections
+  const score = Math.max(0, correct - penalty);
+  const percentage = maxCorrect > 0 ? Math.round((score / maxCorrect) * 100) : 0;
 
   return {
-    selected: selectedIds.length,
+    selected: total,
     total: question.options.length,
-    required: question.minSelections || question.exactSelections || 0,
-    correct: correctCount
-  }
-}
+    correct,
+    incorrect,
+    percentage
+  };
+};
 
 // =================================================================
-// 🎯 SUB-COMPONENTS
+// 🎯 CHECKBOX OPTION ITEM COMPONENT
 // =================================================================
 
-function CheckboxOptionItem({ 
-  option, 
-  index, 
-  isSelected, 
-  isCorrect, 
-  isIncorrect, 
-  showFeedback = false, 
-  onToggle, 
-  disabled = false 
-}: CheckboxOptionProps) {
-  const handleToggle = useCallback(() => {
+function CheckboxOptionItem({
+  option,
+  index,
+  isSelected,
+  isCorrect = false,
+  showFeedback = false,
+  onToggle,
+  disabled = false,
+  className
+}: CheckboxOptionItemProps) {
+  const handleToggle = () => {
     if (!disabled) {
-      onToggle(option.id)
+      onToggle(option.id);
     }
-  }, [option.id, onToggle, disabled])
+  };
+
+  const getOptionStatus = () => {
+    if (!showFeedback) {
+      return isSelected ? 'selected' : 'unselected';
+    }
+
+    if (isSelected && isCorrect) return 'correct';
+    if (isSelected && !isCorrect) return 'incorrect';
+    if (!isSelected && isCorrect) return 'missed';
+    return 'unselected';
+  };
+
+  const status = getOptionStatus();
+  
+  const statusStyles = {
+    selected: 'border-blue-200 bg-blue-50',
+    unselected: 'border-gray-200 bg-white hover:border-gray-300',
+    correct: 'border-green-200 bg-green-50',
+    incorrect: 'border-red-200 bg-red-50',
+    missed: 'border-orange-200 bg-orange-50'
+  };
+
+  const iconStyles = {
+    selected: 'text-blue-600',
+    unselected: 'text-gray-400',
+    correct: 'text-green-600',
+    incorrect: 'text-red-600',
+    missed: 'text-orange-600'
+  };
 
   return (
     <div
       className={cn(
-        "group relative p-4 rounded-lg border-2 transition-all duration-200 cursor-pointer",
-        "hover:border-blue-300 hover:bg-blue-50",
-        disabled && "cursor-not-allowed opacity-75",
-        isSelected && "border-blue-500 bg-blue-50",
-        showFeedback && isCorrect && "border-green-500 bg-green-50",
-        showFeedback && isIncorrect && "border-red-500 bg-red-50"
+        'border rounded-lg p-4 cursor-pointer transition-all duration-200',
+        statusStyles[status],
+        disabled && 'cursor-not-allowed opacity-60',
+        className
       )}
       onClick={handleToggle}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-start space-x-3">
         {/* Checkbox */}
-        <div className="flex items-center justify-center mt-0.5">
+        <div className="flex-shrink-0 mt-0.5">
           <Checkbox
             checked={isSelected}
             onChange={handleToggle}
             disabled={disabled}
-            className={cn(
-              "w-5 h-5",
-              showFeedback && isCorrect && "border-green-500 data-[state=checked]:bg-green-500",
-              showFeedback && isIncorrect && "border-red-500 data-[state=checked]:bg-red-500"
-            )}
+            className={iconStyles[status]}
           />
         </div>
 
-        {/* Content */}
+        {/* Option Content */}
         <div className="flex-1 min-w-0">
-          {/* Option Text */}
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                  {String.fromCharCode(65 + index)}
-                </span>
-                <span className={cn(
-                  "text-sm font-medium",
-                  showFeedback && isCorrect && "text-green-800",
-                  showFeedback && isIncorrect && "text-red-800"
-                )}>
-                  {option.text}
-                </span>
-              </div>
+              <p className="text-sm font-medium text-gray-900 mb-1">
+                {String.fromCharCode(65 + index)}) {option.text}
+              </p>
               
-              {option.description && (
-                <p className="text-sm text-gray-600 mt-1 ml-8">
-                  {option.description}
+              {/* Explanation (if available and feedback shown) */}
+              {showFeedback && option.explanation && (
+                <p className="text-xs text-gray-600 mt-2 pl-4 border-l-2 border-gray-200">
+                  {option.explanation}
                 </p>
               )}
             </div>
 
-            {/* Feedback Icons */}
+            {/* Status Icon */}
             {showFeedback && (
-              <div className="ml-2">
-                {isCorrect && <CheckCircle2 className="w-5 h-5 text-green-600" />}
-                {isIncorrect && <XCircle className="w-5 h-5 text-red-600" />}
+              <div className="flex-shrink-0 ml-2">
+                {status === 'correct' && <CheckCircle2 className="w-4 h-4 text-green-600" />}
+                {status === 'incorrect' && <XCircle className="w-4 h-4 text-red-600" />}
+                {status === 'missed' && <Target className="w-4 h-4 text-orange-600" />}
               </div>
             )}
           </div>
-
-          {/* Option Image */}
-          {option.imageUrl && (
-            <div className="mt-3 ml-8">
-              <img 
-                src={option.imageUrl} 
-                alt={option.imageAlt || `Option ${String.fromCharCode(65 + index)}`}
-                className="max-w-32 max-h-32 object-contain rounded-md border border-gray-200"
-              />
-            </div>
-          )}
-
-          {/* Option Explanation (shown after submission) */}
-          {showFeedback && option.explanation && (
-            <div className="mt-3 ml-8 p-2 bg-blue-50 rounded text-xs text-blue-700">
-              <strong>Explanation:</strong> {option.explanation}
-            </div>
-          )}
         </div>
       </div>
-
-      {/* Selection Indicator */}
-      {isSelected && !showFeedback && (
-        <div className="absolute top-2 right-2">
-          <CheckSquare className="w-4 h-4 text-blue-600" />
-        </div>
-      )}
     </div>
-  )
-}
-
-function SelectionSummary({ 
-  stats, 
-  question, 
-  showScore = false, 
-  score 
-}: {
-  stats: SelectionStats
-  question: CheckboxQuestion
-  showScore?: boolean
-  score?: number
-}) {
-  const getStatusColor = () => {
-    if (showScore) {
-      return score && score >= 70 ? 'text-green-600' : 'text-red-600'
-    }
-    
-    if (question.exactSelections) {
-      return stats.selected === question.exactSelections ? 'text-green-600' : 'text-orange-600'
-    }
-    
-    if (question.minSelections && stats.selected < question.minSelections) {
-      return 'text-red-600'
-    }
-    
-    if (question.maxSelections && stats.selected > question.maxSelections) {
-      return 'text-red-600'
-    }
-    
-    return 'text-blue-600'
-  }
-
-  return (
-    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-      <div className="flex items-center gap-4 text-sm">
-        <span className={cn("font-medium", getStatusColor())}>
-          {stats.selected} of {stats.total} selected
-        </span>
-        
-        {question.exactSelections && (
-          <span className="text-gray-600">
-            (exactly {question.exactSelections} required)
-          </span>
-        )}
-        
-        {question.minSelections && !question.exactSelections && (
-          <span className="text-gray-600">
-            (minimum {question.minSelections} required)
-          </span>
-        )}
-        
-        {question.maxSelections && !question.exactSelections && (
-          <span className="text-gray-600">
-            (maximum {question.maxSelections} allowed)
-          </span>
-        )}
-
-        {showScore && (
-          <Badge className={score && score >= 70 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-            {stats.correct} correct
-          </Badge>
-        )}
-      </div>
-
-      {showScore && score !== undefined && (
-        <Badge className={score >= 70 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-          {Math.round(score)}% Score
-        </Badge>
-      )}
-    </div>
-  )
-}
-
-function SelectionProgress({ current, max, type }: { current: number; max: number; type: 'min' | 'max' | 'exact' }) {
-  const percentage = max > 0 ? Math.min((current / max) * 100, 100) : 0
-  
-  const getColor = () => {
-    if (type === 'exact') {
-      return current === max ? 'bg-green-500' : 'bg-blue-500'
-    }
-    if (type === 'min') {
-      return current >= max ? 'bg-green-500' : 'bg-orange-500'
-    }
-    return current <= max ? 'bg-green-500' : 'bg-red-500'
-  }
-
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-xs text-gray-600">
-        <span>Selection Progress</span>
-        <span>{current} / {max}</span>
-      </div>
-      <Progress 
-        value={percentage} 
-        className="h-2"
-        // Apply custom color through CSS custom properties
-        style={{
-          '--progress-background': percentage === 100 ? '#10b981' : '#3b82f6'
-        } as React.CSSProperties}
-      />
-    </div>
-  )
+  );
 }
 
 // =================================================================
-// 🎯 MAIN COMPONENT
+// 🎯 MAIN QUIZ CHECKBOX COMPONENT
 // =================================================================
 
 function QuizCheckbox({
   question,
-  questionIndex,
-  totalQuestions,
+  questionIndex = 0,
+  totalQuestions = 1,
   value = [],
   onChange,
   onSubmit,
   isSubmitted = false,
-  result,
   showCorrect = false,
+  showExplanation = false,
   timeLimit,
-  className
+  className,
+  readonly = false
 }: QuizCheckboxProps) {
-  // State Management
-  const [selectedIds, setSelectedIds] = useState<string[]>(value)
-  const [shuffledOptions, setShuffledOptions] = useState<CheckboxOption[]>([])
-  const [showHints, setShowHints] = useState(false)
-  const [validationErrors, setValidationErrors] = useState<string[]>([])
+  // =================================================================
+  // 🔄 STATE MANAGEMENT
+  // =================================================================
+  
+  const [selectedOptions, setSelectedOptions] = useState<string[]>(value);
+  const [showFeedback, setShowFeedback] = useState(false);
 
-  // Initialize shuffled options
+  // Sync with external value changes
   useEffect(() => {
-    const options = question.shuffleOptions 
-      ? shuffleArray(question.options)
-      : question.options
-    setShuffledOptions(options)
-  }, [question.options, question.shuffleOptions])
+    setSelectedOptions(value);
+  }, [value]);
 
-  // Sync with parent component
+  // Show feedback when submitted or showCorrect is true
   useEffect(() => {
-    if (JSON.stringify(value) !== JSON.stringify(selectedIds)) {
-      setSelectedIds(value)
+    if (isSubmitted || showCorrect) {
+      setShowFeedback(true);
     }
-  }, [value])
+  }, [isSubmitted, showCorrect]);
 
-  useEffect(() => {
-    onChange(selectedIds)
-  }, [selectedIds, onChange])
+  // =================================================================
+  // 🎯 COMPUTED VALUES
+  // =================================================================
 
-  // Event Handlers
-  const handleToggle = useCallback((optionId: string) => {
-    setSelectedIds(prev => {
-      const newSelection = prev.includes(optionId)
-        ? prev.filter(id => id !== optionId)
-        : [...prev, optionId]
-      
-      // Validate max selections immediately
-      if (question.maxSelections && newSelection.length > question.maxSelections) {
-        toast.error(`You can select maximum ${question.maxSelections} option${question.maxSelections !== 1 ? 's' : ''}`)
-        return prev
-      }
-      
-      return newSelection
-    })
-    setValidationErrors([])
-  }, [question.maxSelections])
+  const options = useMemo(() => {
+    return question.shuffleOptions ? shuffleArray(question.options) : question.options;
+  }, [question.options, question.shuffleOptions]);
 
-  const handleSelectAll = useCallback(() => {
-    if (isSubmitted) return
-    
-    const allIds = shuffledOptions.map(option => option.id)
-    if (question.maxSelections && allIds.length > question.maxSelections) {
-      toast.error(`Cannot select all: maximum ${question.maxSelections} option${question.maxSelections !== 1 ? 's' : ''} allowed`)
-      return
-    }
-    
-    setSelectedIds(allIds)
-    setValidationErrors([])
-    toast.success('All options selected')
-  }, [shuffledOptions, question.maxSelections, isSubmitted])
+  const validation = useMemo(() => {
+    return validateSelection(selectedOptions, question);
+  }, [selectedOptions, question]);
 
-  const handleClearAll = useCallback(() => {
-    if (isSubmitted) return
-    
-    setSelectedIds([])
-    setValidationErrors([])
-    toast.success('All selections cleared')
-  }, [isSubmitted])
+  const stats = useMemo(() => {
+    return calculateScore(selectedOptions, question);
+  }, [selectedOptions, question]);
 
-  const handleShuffle = useCallback(() => {
-    if (isSubmitted) return
-    
-    setShuffledOptions(shuffleArray(question.options))
-    toast.success('Options shuffled')
-  }, [question.options, isSubmitted])
+  const correctOptionIds = useMemo(() => {
+    return question.options.filter(opt => opt.isCorrect).map(opt => opt.id);
+  }, [question.options]);
+
+  // =================================================================
+  // 🎯 EVENT HANDLERS
+  // =================================================================
+
+  const handleOptionToggle = useCallback((optionId: string) => {
+    if (readonly || isSubmitted) return;
+
+    const newSelected = selectedOptions.includes(optionId)
+      ? selectedOptions.filter(id => id !== optionId)
+      : [...selectedOptions, optionId];
+
+    setSelectedOptions(newSelected);
+    onChange(newSelected);
+  }, [selectedOptions, onChange, readonly, isSubmitted]);
 
   const handleSubmit = useCallback(() => {
-    const validation = validateSelection(selectedIds, question)
-    
-    if (!validation.isValid) {
-      setValidationErrors(validation.errors)
-      toast.error('Please fix the validation errors before submitting')
-      return
-    }
+    if (!onSubmit || !validation.isValid) return;
 
     const answer: QuizAnswer = {
+      id: `answer_${Date.now()}`,
       questionId: question.id,
-      type: 'checkbox',
-      answer: selectedIds,
-      metadata: {
-        submittedAt: new Date().toISOString(),
-        optionsShuffled: question.shuffleOptions,
-        totalOptions: question.options.length
-      }
+      value: selectedOptions,
+      submittedAt: new Date()
+    };
+
+    onSubmit(answer);
+    setShowFeedback(true);
+    toast.success('Answer submitted successfully!');
+  }, [onSubmit, validation.isValid, question.id, selectedOptions]);
+
+  const handleReset = useCallback(() => {
+    if (readonly || isSubmitted) return;
+    
+    setSelectedOptions([]);
+    onChange([]);
+    setShowFeedback(false);
+    toast.info('Selection cleared');
+  }, [onChange, readonly, isSubmitted]);
+
+  // =================================================================
+  // 🎨 RENDER HELPERS
+  // =================================================================
+
+  const renderQuestionHeader = () => (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Badge variant="outline">Multiple Selection</Badge>
+        {timeLimit && (
+          <Badge variant="outline" className="text-orange-600">
+            Time: {timeLimit}s
+          </Badge>
+        )}
+      </div>
+      
+      <h3 className="text-lg font-semibold">{question.title}</h3>
+      
+      {question.description && (
+        <p className="text-gray-600 text-sm">{question.description}</p>
+      )}
+
+      <div className="flex items-center space-x-4 text-sm text-gray-500">
+        <span>Select all that apply</span>
+        {question.minSelections && (
+          <span>• Min: {question.minSelections}</span>
+        )}
+        {question.maxSelections && (
+          <span>• Max: {question.maxSelections}</span>
+        )}
+      </div>
+    </div>
+  );
+
+  const renderOptions = () => (
+    <div className="space-y-3">
+      {options.map((option, index) => (
+        <CheckboxOptionItem
+          key={option.id}
+          option={option}
+          index={index}
+          isSelected={selectedOptions.includes(option.id)}
+          isCorrect={correctOptionIds.includes(option.id)}
+          showFeedback={showFeedback}
+          onToggle={handleOptionToggle}
+          disabled={readonly || isSubmitted}
+        />
+      ))}
+    </div>
+  );
+
+  const renderValidation = () => {
+    if (validation.errors.length === 0 && validation.warnings.length === 0) {
+      return null;
     }
 
-    onSubmit(answer)
-    toast.success('Answer submitted successfully!')
-  }, [selectedIds, question, onSubmit])
+    return (
+      <div className="space-y-2">
+        {validation.errors.map((error, index) => (
+          <Alert key={index} variant="destructive">
+            <AlertTriangle className="w-4 h-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        ))}
+        
+        {validation.warnings.map((warning, index) => (
+          <Alert key={index}>
+            <AlertTriangle className="w-4 h-4" />
+            <AlertDescription>{warning}</AlertDescription>
+          </Alert>
+        ))}
+      </div>
+    );
+  };
 
-  // Computed Values
-  const isCorrect = result?.isCorrect ?? false
-  const stats = useMemo(() => 
-    getSelectionSummary(selectedIds, question, question.correctAnswers), 
-    [selectedIds, question]
-  )
-  
-  const scoreData = useMemo(() => {
-    if (!question.correctAnswers) return null
-    return calculateScore(selectedIds, question.correctAnswers)
-  }, [selectedIds, question.correctAnswers])
+  const renderStats = () => {
+    if (!showFeedback) return null;
 
-  const validation = useMemo(() => 
-    validateSelection(selectedIds, question), 
-    [selectedIds, question]
-  )
+    return (
+      <div className="bg-gray-50 rounded-lg p-4">
+        <h4 className="font-medium text-sm mb-3">Selection Results</h4>
+        <div className="grid grid-cols-4 gap-4 text-center">
+          <div>
+            <div className="text-lg font-semibold text-blue-600">{stats.selected}</div>
+            <div className="text-xs text-gray-600">Selected</div>
+          </div>
+          <div>
+            <div className="text-lg font-semibold text-green-600">{stats.correct}</div>
+            <div className="text-xs text-gray-600">Correct</div>
+          </div>
+          <div>
+            <div className="text-lg font-semibold text-red-600">{stats.incorrect}</div>
+            <div className="text-xs text-gray-600">Incorrect</div>
+          </div>
+          <div>
+            <div className="text-lg font-semibold text-purple-600">{stats.percentage}%</div>
+            <div className="text-xs text-gray-600">Score</div>
+          </div>
+        </div>
+        <Progress value={stats.percentage} className="mt-3" />
+      </div>
+    );
+  };
+
+  const renderExplanation = () => {
+    if (!showExplanation || !question.explanation || !showFeedback) {
+      return null;
+    }
+
+    return (
+      <Alert className="border-blue-200 bg-blue-50">
+        <CheckCircle2 className="w-4 h-4 text-blue-600" />
+        <div className="ml-2">
+          <div className="font-medium text-sm text-blue-800">Explanation</div>
+          <AlertDescription className="text-sm text-blue-700 mt-1">
+            {question.explanation}
+          </AlertDescription>
+        </div>
+      </Alert>
+    );
+  };
+
+  const renderControls = () => {
+    if (readonly || isSubmitted) return null;
+
+    return (
+      <div className="flex items-center justify-between pt-4">
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReset}
+            disabled={selectedOptions.length === 0}
+          >
+            <RotateCcw className="w-4 h-4 mr-1" />
+            Clear
+          </Button>
+          
+          <span className="text-sm text-gray-500">
+            {selectedOptions.length} selected
+          </span>
+        </div>
+
+        {onSubmit && (
+          <Button 
+            onClick={handleSubmit}
+            disabled={!validation.isValid}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
+            Submit Answer
+          </Button>
+        )}
+      </div>
+    );
+  };
+
+  // =================================================================
+  // 🎨 MAIN RENDER
+  // =================================================================
 
   return (
-    <Card className={cn("w-full", className)}>
-      <CardHeader className="pb-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <CheckSquare className="w-5 h-5 text-blue-600" />
-              <span>Question {questionIndex + 1}</span>
-              <Badge variant="outline">Multiple Select</Badge>
-            </CardTitle>
-            
-            {timeLimit && (
-              <QuizProgress 
-                current={questionIndex + 1} 
-                total={totalQuestions}
-                timeLimit={timeLimit}
-                className="mt-2"
-              />
+    <Card className={cn('w-full', className)}>
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Question {questionIndex + 1}</span>
+          <div className="flex items-center space-x-2">
+            {showFeedback && (
+              <Badge variant={stats.percentage >= 60 ? "default" : "destructive"}>
+                {stats.percentage}% Score
+              </Badge>
             )}
           </div>
-
-          {isSubmitted && (
-            <Badge className={isCorrect ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-              {isCorrect ? (
-                <>
-                  <CheckCircle2 className="w-3 h-3 mr-1" />
-                  Correct
-                </>
-              ) : (
-                <>
-                  <XCircle className="w-3 h-3 mr-1" />
-                  Incorrect
-                </>
-              )}
-            </Badge>
-          )}
-        </div>
+        </CardTitle>
       </CardHeader>
 
       <CardContent className="space-y-6">
-        {/* Question Text */}
-        <div className="prose prose-sm max-w-none">
-          <p className="text-gray-700 leading-relaxed">
-            {question.question}
-          </p>
-          
-          {question.instructions && (
-            <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-              <h4 className="text-sm font-medium text-blue-800 mb-1">Instructions:</h4>
-              <p className="text-sm text-blue-700">{question.instructions}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Validation Errors */}
-        {validationErrors.length > 0 && (
-          <Alert className="border-red-200 bg-red-50">
-            <AlertTriangle className="h-4 w-4 text-red-600" />
-            <AlertDescription className="text-red-800">
-              <ul className="list-disc list-inside space-y-1">
-                {validationErrors.map((error, index) => (
-                  <li key={index}>{error}</li>
-                ))}
-              </ul>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Controls */}
-        {!isSubmitted && (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowHints(!showHints)}
-              >
-                {showHints ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
-                {showHints ? 'Hide' : 'Show'} Hints
-              </Button>
-              
-              {question.hints && showHints && (
-                <Badge variant="outline" className="text-blue-600">
-                  {question.hints.length} hint(s) available
-                </Badge>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleShuffle}
-                disabled={isSubmitted}
-              >
-                <Shuffle className="w-4 h-4 mr-1" />
-                Shuffle
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleSelectAll}
-                disabled={isSubmitted || (question.maxSelections && shuffledOptions.length > question.maxSelections)}
-              >
-                <Target className="w-4 h-4 mr-1" />
-                Select All
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleClearAll}
-                disabled={isSubmitted || selectedIds.length === 0}
-              >
-                <RotateCcw className="w-4 h-4 mr-1" />
-                Clear All
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Hints */}
-        {showHints && question.hints && question.hints.length > 0 && (
-          <Alert className="border-blue-200 bg-blue-50">
-            <AlertTriangle className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-800">
-              <ul className="list-disc list-inside space-y-1">
-                {question.hints.map((hint, index) => (
-                  <li key={index}>{hint}</li>
-                ))}
-              </ul>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Selection Progress */}
-        {!isSubmitted && (question.minSelections || question.maxSelections || question.exactSelections) && (
-          <div className="space-y-3">
-            {question.exactSelections && (
-              <SelectionProgress 
-                current={selectedIds.length} 
-                max={question.exactSelections} 
-                type="exact" 
-              />
-            )}
-            {question.minSelections && !question.exactSelections && (
-              <SelectionProgress 
-                current={selectedIds.length} 
-                max={question.minSelections} 
-                type="min" 
-              />
-            )}
-            {question.maxSelections && !question.exactSelections && (
-              <SelectionProgress 
-                current={selectedIds.length} 
-                max={question.maxSelections} 
-                type="max" 
-              />
-            )}
-          </div>
-        )}
-
-        {/* Selection Summary */}
-        <SelectionSummary 
-          stats={stats} 
-          question={question}
-          showScore={showCorrect}
-          score={scoreData?.score}
-        />
+        {/* Question Header */}
+        {renderQuestionHeader()}
 
         {/* Options */}
-        <div className="space-y-3">
-          {shuffledOptions.map((option, index) => {
-            const isSelected = selectedIds.includes(option.id)
-            const isCorrect = showCorrect && question.correctAnswers?.includes(option.id)
-            const isIncorrect = showCorrect && isSelected && !question.correctAnswers?.includes(option.id)
-            
-            return (
-              <CheckboxOptionItem
-                key={option.id}
-                option={option}
-                index={index}
-                isSelected={isSelected}
-                isCorrect={isCorrect}
-                isIncorrect={isIncorrect}
-                showFeedback={showCorrect}
-                onToggle={handleToggle}
-                disabled={isSubmitted}
-              />
-            )
-          })}
-        </div>
+        {renderOptions()}
 
-        {/* Score Details */}
-        {scoreData && showCorrect && (
-          <div className="p-4 bg-gray-50 rounded-lg space-y-3">
-            <h4 className="text-sm font-medium text-gray-700">Score Breakdown</h4>
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              <div className="text-center">
-                <div className="text-green-600 font-semibold">{scoreData.details.correct}</div>
-                <div className="text-gray-600">Correct</div>
-              </div>
-              <div className="text-center">
-                <div className="text-red-600 font-semibold">{scoreData.details.incorrect}</div>
-                <div className="text-gray-600">Incorrect</div>
-              </div>
-              <div className="text-center">
-                <div className="text-orange-600 font-semibold">{scoreData.details.missed}</div>
-                <div className="text-gray-600">Missed</div>
-              </div>
-            </div>
-            <Progress value={scoreData.score} className="h-2" />
-          </div>
-        )}
+        {/* Validation Messages */}
+        {renderValidation()}
+
+        {/* Statistics */}
+        {renderStats()}
+
+        {/* Controls */}
+        {renderControls()}
 
         {/* Explanation */}
-        {isSubmitted && question.explanation && (
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-            <h4 className="text-sm font-medium text-blue-800 mb-2">Explanation:</h4>
-            <p className="text-sm text-blue-700">{question.explanation}</p>
-          </div>
-        )}
-
-        {/* Submit Button */}
-        {!isSubmitted && (
-          <div className="flex justify-end pt-4">
-            <Button 
-              onClick={handleSubmit}
-              disabled={!validation.isValid}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
-              Submit Answer
-            </Button>
-          </div>
-        )}
+        {renderExplanation()}
       </CardContent>
     </Card>
-  )
+  );
 }
 
-// Component Display Name
-QuizCheckbox.displayName = 'QuizCheckbox'
-
 // =================================================================
-// 🎯 EXPORTS
+// 🎯 COMPONENT DISPLAY NAME
 // =================================================================
 
-export default QuizCheckbox
+QuizCheckbox.displayName = 'QuizCheckbox';
+
+// =================================================================
+// 🎯 ARCTIC SIBERIA EXPORT STANDARD COMPLIANCE
+// =================================================================
+
+// ✅ Main Component - Default Export
+export default QuizCheckbox;
+
+// ✅ Sub-components & Utilities - Named Exports
 export { 
-  CheckboxOptionItem, 
-  SelectionSummary, 
-  SelectionProgress,
+  CheckboxOptionItem,
   shuffleArray,
   validateSelection,
   calculateScore,
-  getSelectionSummary,
   type QuizCheckboxProps,
-  type CheckboxOptionProps,
-  type SelectionStats
-}
+  type CheckboxOptionItemProps,
+  type SelectionStats,
+  type ValidationResult
+};

@@ -277,7 +277,7 @@ function QuestionNavigation({
               size="sm"
               className="flex items-center space-x-1"
             >
-              <Skip className="w-4 h-4" />
+              <SkipForward className="w-4 h-4" />
               <span>Skip</span>
             </Button>
           )}

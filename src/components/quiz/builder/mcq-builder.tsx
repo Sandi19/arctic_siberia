@@ -1,11 +1,20 @@
 // File: src/components/quiz/builder/mcq-builder.tsx
 
-'use client'
+/**
+ * =================================================================
+ * 🔧 MCQ BUILDER COMPONENT - Migrated to @dnd-kit
+ * =================================================================
+ * Multiple Choice Question builder with drag & drop options
+ * Created: July 2025
+ * Phase: 4 - Quiz Builders
+ * =================================================================
+ */
 
-// ✅ FIXED: Framework & Core Imports
-import React, { useState, useCallback, useEffect } from 'react'
+'use client';
 
-// ✅ FIXED: UI Components menggunakan barrel imports dari index.ts
+import React, { useState, useCallback, useMemo } from 'react';
+
+// ✅ FIXED: UI Components dari barrel imports
 import {
   Button,
   Card,
@@ -14,312 +23,349 @@ import {
   CardTitle,
   Input,
   Label,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
   Textarea,
-  RadioGroup,
-  RadioGroupItem,
-  Switch,
   Badge,
   Alert,
   AlertDescription,
-  Separator
-} from '@/components/ui'
-
-// Feature Components
-import { OptionEditor } from '../shared/option-editor'
+  Switch,
+} from '@/components/ui';
 
 // Icons
-import { 
-  Plus, 
-  Trash2, 
-  Edit3, 
-  CheckCircle2, 
-  Circle, 
+import {
+  Plus,
+  Trash2,
   GripVertical,
-  AlertTriangle,
+  Save,
   Eye,
   EyeOff,
+  AlertCircle,
+  CheckCircle2,
+  FileQuestion,
+  Lightbulb,
   Shuffle,
-  RotateCcw,
-  Save,
-  FileQuestion
-} from 'lucide-react'
+} from 'lucide-react';
 
-// External Libraries
-import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd'
-import { useForm, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { toast } from 'sonner'
+// ✅ NEW: @dnd-kit imports
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  DropAnimation,
+  UniqueIdentifier,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+// Form & Validation
+import { useForm, Controller, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { toast } from 'sonner';
 
 // Local Utilities
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils';
 
 // Types
-import type { MCQQuestion, MCQOption } from '../types'
-
-// =================================================================
-// 🎯 VALIDATION SCHEMAS
-// =================================================================
-
-const mcqOptionSchema = z.object({
-  id: z.string(),
-  text: z.string().min(1, 'Option text is required').max(500, 'Option text too long'),
-  imageUrl: z.string().optional(),
-  imageAlt: z.string().optional(),
-  explanation: z.string().optional()
-})
-
-const mcqQuestionSchema = z.object({
-  question: z.string().min(10, 'Question must be at least 10 characters').max(1000, 'Question too long'),
-  instructions: z.string().optional(),
-  options: z.array(mcqOptionSchema).min(2, 'At least 2 options required').max(10, 'Maximum 10 options allowed'),
-  correctAnswerIndex: z.number().min(0, 'Must select a correct answer'),
-  explanation: z.string().optional(),
-  hints: z.array(z.string()).optional(),
-  points: z.number().min(1, 'Points must be at least 1').max(100, 'Maximum 100 points'),
-  shuffleOptions: z.boolean().default(false),
-  allowPartialCredit: z.boolean().default(false),
-  showExplanation: z.boolean().default(true)
-})
-
-type MCQFormData = z.infer<typeof mcqQuestionSchema>
+import type { MCQQuestion, BuilderComponentProps } from '../types';
 
 // =================================================================
 // 🎯 INTERFACES & TYPES
 // =================================================================
 
-interface MCQBuilderProps {
-  initialData?: Partial<MCQQuestion>
-  onSave: (question: MCQQuestion) => void
-  onCancel: () => void
-  onPreview?: (question: MCQQuestion) => void
-  isEditing?: boolean
-  className?: string
+interface MCQBuilderProps extends BuilderComponentProps<MCQQuestion> {
+  className?: string;
+}
+
+interface MCQOption {
+  id: string;
+  text: string;
+  explanation?: string;
+}
+
+interface MCQFormData {
+  question: string;
+  instructions?: string;
+  options: MCQOption[];
+  correctAnswerIndex: number;
+  explanation?: string;
+  points: number;
+  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
+  timeLimit?: number;
+  hints?: string[];
+  shuffleOptions?: boolean;
+  showExplanationAfter?: boolean;
+  tags?: string[];
 }
 
 interface OptionItemProps {
-  option: MCQOption
-  index: number
-  isCorrect: boolean
-  onEdit: (index: number, option: MCQOption) => void
-  onDelete: (index: number) => void
-  onSetCorrect: (index: number) => void
-  isDragDisabled?: boolean
+  option: MCQOption;
+  index: number;
+  isCorrect: boolean;
+  onUpdate: (field: keyof MCQOption, value: string) => void;
+  onDelete: () => void;
+  onSetCorrect: () => void;
+  isDragging?: boolean;
+  disabled?: boolean;
+}
+
+interface SortableOptionItemProps extends OptionItemProps {
+  id: string;
 }
 
 interface QuestionPreview {
-  question: MCQQuestion
-  isVisible: boolean
+  id: string;
+  type: string;
+  question: string;
+  instructions?: string;
+  options: MCQOption[];
+  correctAnswerIndex: number;
+  correctAnswer: number;
+  explanation?: string;
+  createdAt: string;
+  updatedAt: string;
 }
+
+// =================================================================
+// 🎯 VALIDATION SCHEMA
+// =================================================================
+
+const mcqQuestionSchema = z.object({
+  question: z.string().min(10, 'Question must be at least 10 characters'),
+  instructions: z.string().optional(),
+  options: z.array(z.object({
+    id: z.string(),
+    text: z.string().min(1, 'Option text is required'),
+    explanation: z.string().optional(),
+  })).min(2, 'At least 2 options are required').max(6, 'Maximum 6 options allowed'),
+  correctAnswerIndex: z.number().min(0),
+  explanation: z.string().optional(),
+  points: z.number().min(1).max(100),
+  difficulty: z.enum(['EASY', 'MEDIUM', 'HARD']),
+  timeLimit: z.number().optional(),
+  hints: z.array(z.string()).optional(),
+  shuffleOptions: z.boolean().optional(),
+  showExplanationAfter: z.boolean().optional(),
+  tags: z.array(z.string()).optional(),
+});
 
 // =================================================================
 // 🎯 UTILITY FUNCTIONS
 // =================================================================
 
 const generateId = (): string => {
-  return `mcq_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-}
+  return `mcq_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+};
 
 const createEmptyOption = (): MCQOption => ({
   id: generateId(),
   text: '',
-  imageUrl: '',
-  imageAlt: '',
-  explanation: ''
-})
+  explanation: undefined,
+});
 
-const createDefaultQuestion = (): Partial<MCQQuestion> => ({
+const createDefaultQuestion = (): MCQFormData => ({
   question: '',
-  instructions: '',
+  instructions: undefined,
   options: [
-    { id: generateId(), text: '', imageUrl: '', imageAlt: '', explanation: '' },
-    { id: generateId(), text: '', imageUrl: '', imageAlt: '', explanation: '' }
+    createEmptyOption(),
+    createEmptyOption(),
+    createEmptyOption(),
+    createEmptyOption(),
   ],
   correctAnswerIndex: 0,
   explanation: '',
+  points: 1,
+  difficulty: 'MEDIUM',
+  timeLimit: undefined,
   hints: [],
-  points: 10,
   shuffleOptions: false,
-  allowPartialCredit: false,
-  showExplanation: true
-})
+  showExplanationAfter: true,
+  tags: [],
+});
 
 const validateFormData = (data: MCQFormData): string[] => {
-  const errors: string[] = []
+  const errors: string[] = [];
   
-  // Check if at least one option has text
-  const hasValidOptions = data.options.some(opt => opt.text.trim().length > 0)
-  if (!hasValidOptions) {
-    errors.push('At least one option must have text')
+  // Check if all options have text
+  const emptyOptions = data.options.filter(opt => !opt.text.trim());
+  if (emptyOptions.length > 0) {
+    errors.push('All options must have text');
   }
   
   // Check if correct answer index is valid
   if (data.correctAnswerIndex >= data.options.length) {
-    errors.push('Invalid correct answer selection')
+    errors.push('Invalid correct answer selection');
   }
   
-  // Check if correct answer option has text
-  const correctOption = data.options[data.correctAnswerIndex]
-  if (!correctOption?.text.trim()) {
-    errors.push('Correct answer option must have text')
-  }
-  
-  return errors
-}
+  return errors;
+};
 
 // =================================================================
-// 🎯 SUB-COMPONENTS
+// 🎯 SORTABLE OPTION ITEM COMPONENT
 // =================================================================
 
-function OptionItem({ 
-  option, 
-  index, 
-  isCorrect, 
-  onEdit, 
-  onDelete, 
-  onSetCorrect, 
-  isDragDisabled = false 
-}: OptionItemProps) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [editText, setEditText] = useState(option.text)
+function SortableOptionItem({
+  id,
+  option,
+  index,
+  isCorrect,
+  onUpdate,
+  onDelete,
+  onSetCorrect,
+  isDragging = false,
+  disabled = false,
+}: SortableOptionItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging: isSortableDragging,
+  } = useSortable({
+    id: id,
+    disabled: disabled,
+  });
 
-  const handleSaveEdit = () => {
-    if (editText.trim()) {
-      onEdit(index, { ...option, text: editText.trim() })
-      setIsEditing(false)
-    }
-  }
-
-  const handleCancelEdit = () => {
-    setEditText(option.text)
-    setIsEditing(false)
-  }
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isSortableDragging ? 0.5 : 1,
+  };
 
   return (
-    <Draggable draggableId={option.id} index={index} isDragDisabled={isDragDisabled}>
-      {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          className={cn(
-            "group p-4 border rounded-lg transition-all duration-200",
-            snapshot.isDragging && "shadow-lg rotate-1 scale-105",
-            isCorrect && "border-green-500 bg-green-50",
-            !isCorrect && "border-gray-200 bg-white hover:border-blue-300"
-          )}
-        >
-          <div className="flex items-start gap-3">
-            {/* Drag Handle */}
-            {!isDragDisabled && (
-              <div {...provided.dragHandleProps} className="mt-1 cursor-grab active:cursor-grabbing">
-                <GripVertical className="w-4 h-4 text-gray-400" />
-              </div>
-            )}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "group relative p-4 border rounded-lg transition-all duration-200",
+        isCorrect ? "border-green-500 bg-green-50" : "border-gray-200 bg-white",
+        isDragging && "shadow-lg",
+        disabled && "opacity-60"
+      )}
+    >
+      {/* Drag Handle */}
+      <div
+        className="absolute left-2 top-1/2 -translate-y-1/2 cursor-move"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+      </div>
 
-            {/* Option Letter */}
-            <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 text-sm font-medium">
-              {String.fromCharCode(65 + index)}
-            </div>
+      {/* Option Content */}
+      <div className="ml-8 space-y-3">
+        <div className="flex items-start gap-3">
+          {/* Option Label */}
+          <span className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium">
+            {String.fromCharCode(65 + index)}
+          </span>
 
-            {/* Radio Button */}
-            <div className="mt-1">
-              <RadioGroupItem
-                value={index.toString()}
-                checked={isCorrect}
-                onChange={() => onSetCorrect(index)}
-                className={isCorrect ? "border-green-500 text-green-500" : ""}
-              />
-            </div>
+          {/* Option Text */}
+          <div className="flex-1 space-y-2">
+            <Input
+              value={option.text}
+              onChange={(e) => onUpdate('text', e.target.value)}
+              placeholder={`Option ${String.fromCharCode(65 + index)} text...`}
+              disabled={disabled}
+              className="w-full"
+            />
+            
+            {/* Option Explanation (optional) */}
+            <Textarea
+              value={option.explanation || ''}
+              onChange={(e) => onUpdate('explanation', e.target.value)}
+              placeholder="Explanation for this option (optional)..."
+              disabled={disabled}
+              className="w-full min-h-[60px] text-sm"
+              rows={2}
+            />
+          </div>
 
-            {/* Option Content */}
-            <div className="flex-1 min-w-0">
-              {isEditing ? (
-                <div className="space-y-2">
-                  <Input
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    placeholder="Enter option text..."
-                    className="w-full"
-                    autoFocus
-                  />
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={handleSaveEdit}>
-                      <Save className="w-3 h-3 mr-1" />
-                      Save
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={handleCancelEdit}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className={cn(
-                      "text-sm",
-                      option.text.trim() ? "text-gray-900" : "text-gray-400 italic"
-                    )}>
-                      {option.text.trim() || "Enter option text..."}
-                    </span>
-                    
-                    {isCorrect && (
-                      <Badge className="bg-green-100 text-green-800">
-                        <CheckCircle2 className="w-3 h-3 mr-1" />
-                        Correct
-                      </Badge>
-                    )}
-                  </div>
-
-                  {option.imageUrl && (
-                    <img 
-                      src={option.imageUrl} 
-                      alt={option.imageAlt || `Option ${String.fromCharCode(65 + index)}`}
-                      className="max-w-20 max-h-20 object-contain rounded border"
-                    />
-                  )}
-
-                  {option.explanation && (
-                    <p className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
-                      <strong>Explanation:</strong> {option.explanation}
-                    </p>
-                  )}
-                </div>
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant={isCorrect ? "default" : "outline"}
+              size="sm"
+              onClick={onSetCorrect}
+              disabled={disabled}
+              className={cn(
+                "transition-all",
+                isCorrect && "bg-green-600 hover:bg-green-700"
               )}
-            </div>
+            >
+              {isCorrect ? <CheckCircle2 className="w-4 h-4" /> : "Set Correct"}
+            </Button>
 
-            {/* Actions */}
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            {index > 1 && (
               <Button
+                type="button"
+                variant="outline"
                 size="sm"
-                variant="ghost"
-                onClick={() => setIsEditing(true)}
-                disabled={isEditing}
+                onClick={onDelete}
+                disabled={disabled}
               >
-                <Edit3 className="w-3 h-3" />
+                <Trash2 className="w-4 h-4" />
               </Button>
-              
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => onDelete(index)}
-                className="text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="w-3 h-3" />
-              </Button>
-            </div>
+            )}
           </div>
         </div>
-      )}
-    </Draggable>
-  )
+      </div>
+    </div>
+  );
 }
 
-function QuestionPreviewPanel({ question, isVisible }: QuestionPreview) {
-  if (!isVisible) return null
+// =================================================================
+// 🎯 DRAG OVERLAY ITEM
+// =================================================================
+
+function DragOverlayOption({ option, index }: { option: MCQOption; index: number }) {
+  return (
+    <div className="p-4 border rounded-lg bg-white shadow-lg">
+      <div className="flex items-center gap-3">
+        <GripVertical className="w-4 h-4 text-gray-400" />
+        <span className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-sm font-medium">
+          {String.fromCharCode(65 + index)}
+        </span>
+        <span className="text-sm font-medium">{option.text || `Option ${String.fromCharCode(65 + index)}`}</span>
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// 🎯 PREVIEW PANEL COMPONENT
+// =================================================================
+
+function QuestionPreviewPanel({ 
+  question, 
+  isVisible 
+}: { 
+  question: QuestionPreview; 
+  isVisible: boolean;
+}) {
+  if (!isVisible) return null;
 
   return (
-    <Card className="mt-6">
-      <CardHeader>
+    <Card className="mt-6 border-2 border-blue-200">
+      <CardHeader className="bg-blue-50">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Eye className="w-5 h-5 text-blue-600" />
           Question Preview
@@ -369,7 +415,7 @@ function QuestionPreviewPanel({ question, isVisible }: QuestionPreview) {
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 // =================================================================
@@ -385,8 +431,32 @@ function MCQBuilder({
   className
 }: MCQBuilderProps) {
   // State Management
-  const [showPreview, setShowPreview] = useState(false)
-  const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const [showPreview, setShowPreview] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null);
+  
+  // DND-Kit Sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Drop animation config
+  const dropAnimationConfig: DropAnimation = {
+    sideEffects: defaultDropAnimationSideEffects({
+      styles: {
+        active: {
+          opacity: '0.5',
+        },
+      },
+    }),
+  };
   
   // Form Setup
   const {
@@ -402,100 +472,98 @@ function MCQBuilder({
       ...initialData
     },
     mode: 'onChange'
-  })
+  });
 
-  const watchedData = watch()
+  const watchedData = watch();
 
   // Event Handlers
-  const handleAddOption = useCallback(() => {
-    if (watchedData.options.length >= 10) {
-      toast.error('Maximum 10 options allowed')
-      return
-    }
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id);
+  };
 
-    const newOptions = [...watchedData.options, createEmptyOption()]
-    setValue('options', newOptions)
-    toast.success('Option added')
-  }, [watchedData.options, setValue])
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    setActiveId(null);
+
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = watchedData.options.findIndex(opt => opt.id === active.id);
+    const newIndex = watchedData.options.findIndex(opt => opt.id === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const newOptions = [...watchedData.options];
+      const [movedItem] = newOptions.splice(oldIndex, 1);
+      newOptions.splice(newIndex, 0, movedItem);
+
+      // Update correct answer index if needed
+      let newCorrectIndex = watchedData.correctAnswerIndex;
+      
+      if (watchedData.correctAnswerIndex === oldIndex) {
+        newCorrectIndex = newIndex;
+      } else if (
+        oldIndex < watchedData.correctAnswerIndex && 
+        newIndex >= watchedData.correctAnswerIndex
+      ) {
+        newCorrectIndex = watchedData.correctAnswerIndex - 1;
+      } else if (
+        oldIndex > watchedData.correctAnswerIndex && 
+        newIndex <= watchedData.correctAnswerIndex
+      ) {
+        newCorrectIndex = watchedData.correctAnswerIndex + 1;
+      }
+
+      setValue('options', newOptions);
+      setValue('correctAnswerIndex', newCorrectIndex);
+    }
+  }, [watchedData.options, watchedData.correctAnswerIndex, setValue]);
+
+  const handleAddOption = useCallback(() => {
+    if (watchedData.options.length < 6) {
+      setValue('options', [...watchedData.options, createEmptyOption()]);
+    }
+  }, [watchedData.options, setValue]);
 
   const handleDeleteOption = useCallback((index: number) => {
-    if (watchedData.options.length <= 2) {
-      toast.error('Minimum 2 options required')
-      return
+    if (watchedData.options.length > 2) {
+      const newOptions = watchedData.options.filter((_, i) => i !== index);
+      setValue('options', newOptions);
+      
+      // Adjust correct answer index if needed
+      if (watchedData.correctAnswerIndex >= index && watchedData.correctAnswerIndex > 0) {
+        setValue('correctAnswerIndex', watchedData.correctAnswerIndex - 1);
+      } else if (watchedData.correctAnswerIndex >= newOptions.length) {
+        setValue('correctAnswerIndex', newOptions.length - 1);
+      }
     }
+  }, [watchedData.options, watchedData.correctAnswerIndex, setValue]);
 
-    const newOptions = watchedData.options.filter((_, i) => i !== index)
-    setValue('options', newOptions)
-
-    // Adjust correct answer index if necessary
-    if (watchedData.correctAnswerIndex >= newOptions.length) {
-      setValue('correctAnswerIndex', newOptions.length - 1)
-    } else if (watchedData.correctAnswerIndex > index) {
-      setValue('correctAnswerIndex', watchedData.correctAnswerIndex - 1)
-    }
-
-    toast.success('Option deleted')
-  }, [watchedData.options, watchedData.correctAnswerIndex, setValue])
-
-  const handleEditOption = useCallback((index: number, updatedOption: MCQOption) => {
-    const newOptions = [...watchedData.options]
-    newOptions[index] = updatedOption
-    setValue('options', newOptions)
-  }, [watchedData.options, setValue])
-
-  const handleSetCorrectAnswer = useCallback((index: number) => {
-    setValue('correctAnswerIndex', index)
-  }, [setValue])
-
-  const handleReorderOptions = useCallback((result: DropResult) => {
-    if (!result.destination) return
-
-    const items = Array.from(watchedData.options)
-    const [reorderedItem] = items.splice(result.source.index, 1)
-    items.splice(result.destination.index, 0, reorderedItem)
-
-    // Update correct answer index
-    const oldCorrectIndex = watchedData.correctAnswerIndex
-    let newCorrectIndex = oldCorrectIndex
-
-    if (oldCorrectIndex === result.source.index) {
-      newCorrectIndex = result.destination.index
-    } else if (
-      oldCorrectIndex > result.source.index && 
-      oldCorrectIndex <= result.destination.index
-    ) {
-      newCorrectIndex = oldCorrectIndex - 1
-    } else if (
-      oldCorrectIndex < result.source.index && 
-      oldCorrectIndex >= result.destination.index
-    ) {
-      newCorrectIndex = oldCorrectIndex + 1
-    }
-
-    setValue('options', items)
-    setValue('correctAnswerIndex', newCorrectIndex)
-  }, [watchedData.options, watchedData.correctAnswerIndex, setValue])
+  const handleUpdateOption = useCallback((index: number, field: keyof MCQOption, value: string) => {
+    const newOptions = [...watchedData.options];
+    newOptions[index] = { ...newOptions[index], [field]: value };
+    setValue('options', newOptions);
+  }, [watchedData.options, setValue]);
 
   const handleAddHint = useCallback(() => {
-    const newHints = [...(watchedData.hints || []), '']
-    setValue('hints', newHints)
-  }, [watchedData.hints, setValue])
+    const newHints = [...(watchedData.hints || []), ''];
+    setValue('hints', newHints);
+  }, [watchedData.hints, setValue]);
 
   const handleDeleteHint = useCallback((index: number) => {
-    const newHints = (watchedData.hints || []).filter((_, i) => i !== index)
-    setValue('hints', newHints)
-  }, [watchedData.hints, setValue])
+    const newHints = (watchedData.hints || []).filter((_, i) => i !== index);
+    setValue('hints', newHints);
+  }, [watchedData.hints, setValue]);
 
   const onSubmit = useCallback((data: MCQFormData) => {
-    const customErrors = validateFormData(data)
+    const customErrors = validateFormData(data);
     
     if (customErrors.length > 0) {
-      setValidationErrors(customErrors)
-      toast.error('Please fix validation errors')
-      return
+      setValidationErrors(customErrors);
+      toast.error('Please fix validation errors');
+      return;
     }
 
-    setValidationErrors([])
+    setValidationErrors([]);
 
     const question: MCQQuestion = {
       id: initialData?.id || generateId(),
@@ -504,11 +572,11 @@ function MCQBuilder({
       correctAnswer: data.correctAnswerIndex,
       createdAt: initialData?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString()
-    }
+    };
 
-    onSave(question)
-    toast.success(isEditing ? 'Question updated' : 'Question created')
-  }, [initialData, onSave, isEditing])
+    onSave(question);
+    toast.success(isEditing ? 'Question updated' : 'Question created');
+  }, [initialData, onSave, isEditing]);
 
   const handlePreview = useCallback(() => {
     if (onPreview && isValid) {
@@ -519,10 +587,17 @@ function MCQBuilder({
         correctAnswer: watchedData.correctAnswerIndex,
         createdAt: initialData?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
-      }
-      onPreview(question)
+      };
+      onPreview(question);
     }
-  }, [onPreview, isValid, watchedData, initialData])
+  }, [onPreview, isValid, watchedData, initialData]);
+
+  const activeOption = activeId 
+    ? watchedData.options.find(opt => opt.id === activeId)
+    : null;
+  const activeIndex = activeId
+    ? watchedData.options.findIndex(opt => opt.id === activeId)
+    : -1;
 
   return (
     <Card className={cn("w-full max-w-4xl mx-auto", className)}>
@@ -533,26 +608,27 @@ function MCQBuilder({
         </CardTitle>
       </CardHeader>
 
-      <CardContent className="space-y-6">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Validation Errors */}
-          {validationErrors.length > 0 && (
-            <Alert className="border-red-200 bg-red-50">
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-              <AlertDescription className="text-red-800">
-                <ul className="list-disc list-inside space-y-1">
-                  {validationErrors.map((error, index) => (
-                    <li key={index}>{error}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
+      <CardContent>
+        {/* Validation Errors */}
+        {validationErrors.length > 0 && (
+          <Alert className="mb-6 border-red-200 bg-red-50">
+            <AlertCircle className="w-4 h-4 text-red-600" />
+            <div className="ml-2">
+              <div className="font-medium text-sm text-red-800">Validation Errors:</div>
+              {validationErrors.map((error, index) => (
+                <AlertDescription key={index} className="text-sm text-red-700">
+                  • {error}
+                </AlertDescription>
+              ))}
+            </div>
+          </Alert>
+        )}
 
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Question Text */}
           <div className="space-y-2">
-            <Label htmlFor="question" className="text-sm font-medium">
-              Question <span className="text-red-500">*</span>
+            <Label htmlFor="question" className="required">
+              Question Text
             </Label>
             <Controller
               name="question"
@@ -561,12 +637,9 @@ function MCQBuilder({
                 <Textarea
                   {...field}
                   id="question"
-                  placeholder="Enter your multiple choice question..."
+                  placeholder="Enter your question here..."
+                  className="min-h-[100px]"
                   rows={3}
-                  className={cn(
-                    "transition-all duration-200 focus:ring-2 focus:ring-blue-500",
-                    errors.question && "border-red-500"
-                  )}
                 />
               )}
             />
@@ -575,9 +648,9 @@ function MCQBuilder({
             )}
           </div>
 
-          {/* Instructions */}
+          {/* Instructions (Optional) */}
           <div className="space-y-2">
-            <Label htmlFor="instructions" className="text-sm font-medium">
+            <Label htmlFor="instructions">
               Instructions (Optional)
             </Label>
             <Controller
@@ -587,140 +660,73 @@ function MCQBuilder({
                 <Textarea
                   {...field}
                   id="instructions"
-                  placeholder="Additional instructions for students..."
+                  placeholder="Any special instructions for this question..."
+                  className="min-h-[60px]"
                   rows={2}
-                  className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                 />
               )}
             />
           </div>
 
-          {/* Options */}
-          <div className="space-y-4">
+          {/* Options with Drag & Drop */}
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">
-                Answer Options <span className="text-red-500">*</span>
-              </Label>
+              <Label className="required">Answer Options</Label>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={handleAddOption}
-                disabled={watchedData.options.length >= 10}
+                disabled={watchedData.options.length >= 6}
               >
                 <Plus className="w-4 h-4 mr-1" />
                 Add Option
               </Button>
             </div>
 
-            <Controller
-              name="correctAnswerIndex"
-              control={control}
-              render={({ field }) => (
-                <RadioGroup value={field.value.toString()} onValueChange={(value) => field.onChange(parseInt(value))}>
-                  <DragDropContext onDragEnd={handleReorderOptions}>
-                    <Droppable droppableId="options">
-                      {(provided) => (
-                        <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-3">
-                          {watchedData.options.map((option, index) => (
-                            <OptionItem
-                              key={option.id}
-                              option={option}
-                              index={index}
-                              isCorrect={index === watchedData.correctAnswerIndex}
-                              onEdit={handleEditOption}
-                              onDelete={handleDeleteOption}
-                              onSetCorrect={handleSetCorrectAnswer}
-                            />
-                          ))}
-                          {provided.placeholder}
-                        </div>
-                      )}
-                    </Droppable>
-                  </DragDropContext>
-                </RadioGroup>
-              )}
-            />
-          </div>
-
-          <Separator />
-
-          {/* Settings */}
-          <div className="space-y-4">
-            <Label className="text-sm font-medium">Question Settings</Label>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Points */}
-              <div className="space-y-2">
-                <Label htmlFor="points" className="text-sm">Points</Label>
-                <Controller
-                  name="points"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      {...field}
-                      id="points"
-                      type="number"
-                      min="1"
-                      max="100"
-                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                      className="w-full"
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={watchedData.options.map(opt => opt.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-3">
+                  {watchedData.options.map((option, index) => (
+                    <SortableOptionItem
+                      key={option.id}
+                      id={option.id}
+                      option={option}
+                      index={index}
+                      isCorrect={index === watchedData.correctAnswerIndex}
+                      onUpdate={(field, value) => handleUpdateOption(index, field, value)}
+                      onDelete={() => handleDeleteOption(index)}
+                      onSetCorrect={() => setValue('correctAnswerIndex', index)}
+                      disabled={false}
                     />
-                  )}
-                />
-              </div>
+                  ))}
+                </div>
+              </SortableContext>
 
-              {/* Shuffle Options */}
-              <div className="flex items-center space-x-2">
-                <Controller
-                  name="shuffleOptions"
-                  control={control}
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  )}
-                />
-                <Label className="text-sm">Shuffle Options</Label>
-              </div>
+              <DragOverlay dropAnimation={dropAnimationConfig}>
+                {activeId && activeOption && activeIndex !== -1 ? (
+                  <DragOverlayOption option={activeOption} index={activeIndex} />
+                ) : null}
+              </DragOverlay>
+            </DndContext>
 
-              {/* Show Explanation */}
-              <div className="flex items-center space-x-2">
-                <Controller
-                  name="showExplanation"
-                  control={control}
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  )}
-                />
-                <Label className="text-sm">Show Explanation</Label>
-              </div>
-
-              {/* Allow Partial Credit */}
-              <div className="flex items-center space-x-2">
-                <Controller
-                  name="allowPartialCredit"
-                  control={control}
-                  render={({ field }) => (
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  )}
-                />
-                <Label className="text-sm">Allow Partial Credit</Label>
-              </div>
-            </div>
+            {errors.options && (
+              <p className="text-sm text-red-600">{errors.options.message}</p>
+            )}
           </div>
 
           {/* Explanation */}
           <div className="space-y-2">
-            <Label htmlFor="explanation" className="text-sm font-medium">
-              Explanation (Optional)
+            <Label htmlFor="explanation">
+              Explanation (shown after answering)
             </Label>
             <Controller
               name="explanation"
@@ -729,25 +735,125 @@ function MCQBuilder({
                 <Textarea
                   {...field}
                   id="explanation"
-                  placeholder="Explain why this is the correct answer..."
+                  placeholder="Explain the correct answer..."
+                  className="min-h-[80px]"
                   rows={3}
-                  className="transition-all duration-200 focus:ring-2 focus:ring-blue-500"
                 />
               )}
             />
           </div>
 
+          {/* Points & Difficulty */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="points" className="required">Points</Label>
+              <Controller
+                name="points"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    id="points"
+                    type="number"
+                    min={1}
+                    max={100}
+                    onChange={(e) => field.onChange(parseInt(e.target.value))}
+                  />
+                )}
+              />
+              {errors.points && (
+                <p className="text-sm text-red-600">{errors.points.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="difficulty" className="required">Difficulty</Label>
+              <Controller
+                name="difficulty"
+                control={control}
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id="difficulty">
+                      <SelectValue placeholder="Select difficulty" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EASY">Easy</SelectItem>
+                      <SelectItem value="MEDIUM">Medium</SelectItem>
+                      <SelectItem value="HARD">Hard</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          </div>
+
+          {/* Time Limit (Optional) */}
+          <div className="space-y-2">
+            <Label htmlFor="timeLimit">Time Limit (seconds, optional)</Label>
+            <Controller
+              name="timeLimit"
+              control={control}
+              render={({ field }) => (
+                <Input
+                  {...field}
+                  id="timeLimit"
+                  type="number"
+                  min={10}
+                  placeholder="No time limit"
+                  onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                />
+              )}
+            />
+          </div>
+
+          {/* Options */}
+          <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+            <h4 className="text-sm font-medium text-gray-700">Question Options</h4>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="shuffleOptions">Shuffle Options</Label>
+                <Controller
+                  name="shuffleOptions"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="shuffleOptions"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Label htmlFor="showExplanationAfter">Show Explanation After Answer</Label>
+                <Controller
+                  name="showExplanationAfter"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="showExplanationAfter"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Hints */}
-          <div className="space-y-4">
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-sm font-medium">Hints (Optional)</Label>
+              <Label>Hints (Optional)</Label>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 onClick={handleAddHint}
               >
-                <Plus className="w-4 h-4 mr-1" />
+                <Lightbulb className="w-4 h-4 mr-1" />
                 Add Hint
               </Button>
             </div>
@@ -755,13 +861,13 @@ function MCQBuilder({
             {watchedData.hints && watchedData.hints.length > 0 && (
               <div className="space-y-2">
                 {watchedData.hints.map((hint, index) => (
-                  <div key={index} className="flex gap-2">
+                  <div key={index} className="flex items-center gap-2">
                     <Input
                       value={hint}
                       onChange={(e) => {
-                        const newHints = [...watchedData.hints!]
-                        newHints[index] = e.target.value
-                        setValue('hints', newHints)
+                        const newHints = [...watchedData.hints!];
+                        newHints[index] = e.target.value;
+                        setValue('hints', newHints);
                       }}
                       placeholder={`Hint ${index + 1}...`}
                       className="flex-1"
@@ -840,19 +946,19 @@ function MCQBuilder({
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 // Component Display Name
-MCQBuilder.displayName = 'MCQBuilder'
+MCQBuilder.displayName = 'MCQBuilder';
 
 // =================================================================
 // 🎯 EXPORTS
 // =================================================================
 
-export default MCQBuilder
+export default MCQBuilder;
 export { 
-  OptionItem,
+  SortableOptionItem as OptionItem,
   QuestionPreviewPanel,
   generateId,
   createEmptyOption,
@@ -861,4 +967,4 @@ export {
   type MCQBuilderProps,
   type OptionItemProps,
   type QuestionPreview
-}
+};

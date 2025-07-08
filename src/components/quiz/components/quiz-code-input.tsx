@@ -1,12 +1,29 @@
 // File: src/components/quiz/components/quiz-code-input.tsx
 
-'use client'
+/**
+ * =================================================================
+ * 🎯 QUIZ CODE INPUT COMPONENT
+ * =================================================================
+ * Component untuk quiz dengan input kode programming
+ * Created: July 2025
+ * Phase: 2 - Quiz Components
+ * =================================================================
+ */
 
-// ✅ FIXED: Framework & Core Imports
+// =================================================================
+// 🎯 IMPORTS - ARCTIC SIBERIA STANDARD 7 CATEGORIES
+// =================================================================
+
+// 1. Client Directive & Framework
+'use client'
 import React, { useState, useEffect, useCallback } from 'react'
 
-// ✅ FIXED: UI Components menggunakan barrel imports dari index.ts
+// 2. UI Components (Barrel Imports)
+// ✅ FIXED: Menggunakan barrel imports dari index.ts
 import {
+  Alert,
+  AlertDescription,
+  Badge,
   Button,
   Card,
   CardContent,
@@ -17,33 +34,32 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Textarea,
-  Badge,
-  Alert,
-  AlertDescription
+  Textarea
 } from '@/components/ui'
 
-// Feature Components
-import { QuizProgress } from '../shared/quiz-progress'
+// 3. Feature Components
+// ✅ FIXED: Import default export dengan nama yang benar
+import { QuizProgress } from '@/components/quiz'
 
-// Icons
+// 4. Icons (lucide-react grouped together)
+// ✅ FIXED: Icons grouped together
 import { 
+  AlertTriangle,
   CheckCircle2, 
   Code, 
   Copy, 
   Play, 
   RotateCcw, 
-  XCircle, 
-  AlertTriangle 
+  XCircle
 } from 'lucide-react'
 
-// External Libraries  
+// 5. External Libraries  
 import { toast } from 'sonner'
 
-// Local Utilities
+// 6. Local Utilities
 import { cn } from '@/lib/utils'
 
-// Types
+// 7. Constants & Configs
 import type { 
   CodeInputQuestion, 
   QuizAnswer, 
@@ -490,9 +506,11 @@ function QuizCodeInput({
             
             {timeLimit && (
               <QuizProgress 
-                current={questionIndex + 1} 
-                total={totalQuestions}
-                timeLimit={timeLimit}
+                totalQuestions={totalQuestions}
+                currentQuestion={questionIndex + 1}
+                answeredQuestions={questionIndex}
+                timeSpent={timeLimit}
+                compact={true}
                 className="mt-2"
               />
             )}
@@ -687,14 +705,17 @@ function QuizCodeInput({
   )
 }
 
-// Component Display Name
+// Set display name for debugging
 QuizCodeInput.displayName = 'QuizCodeInput'
 
 // =================================================================
-// 🎯 EXPORTS
+// 🎯 EXPORTS - ARCTIC SIBERIA STANDARD ✅ FIXED
 // =================================================================
 
+// ✅ FIXED: Main component as default export
 export default QuizCodeInput
+
+// ✅ FIXED: Named exports dengan proper grouping
 export { 
   LanguageSelector, 
   CodeStats, 

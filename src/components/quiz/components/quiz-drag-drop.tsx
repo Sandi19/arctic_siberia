@@ -20,7 +20,7 @@ import {
 } from '@/components/ui'
 
 // Feature Components
-import { QuizProgress } from '../shared/quiz-progress'
+import { QuizProgress } from '@/components/quiz'
 
 // Icons
 import { 
@@ -36,13 +36,29 @@ import {
   EyeOff
 } from 'lucide-react'
 
-// External Libraries  
-import { 
-  DragDropContext, 
-  Droppable, 
-  Draggable,
-  DropResult 
-} from '@hello-pangea/dnd'
+// ✅ NEW: @dnd-kit imports
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  DropAnimation,
+  UniqueIdentifier,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  rectSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { toast } from 'sonner'
 
 // Local Utilities
@@ -80,13 +96,14 @@ interface DragDropAnswer {
   submittedAt?: string
 }
 
-interface DroppableItemProps {
+interface SortableItemProps {
+  id: string
   item: DragDropItem
-  index: number
-  isDragDisabled?: boolean
+  isDragging?: boolean
   isCorrect?: boolean
   isIncorrect?: boolean
   showFeedback?: boolean
+  disabled?: boolean
 }
 
 interface DroppableZoneProps {
@@ -166,215 +183,254 @@ const getUnplacedItems = (
 }
 
 // =================================================================
-// 🎯 SUB-COMPONENTS
+// 🎯 SORTABLE ITEM COMPONENT
 // =================================================================
 
-function DraggableItem({ 
+function SortableItem({ 
+  id,
   item, 
-  index, 
-  isDragDisabled = false, 
+  isDragging = false,
   isCorrect, 
   isIncorrect, 
-  showFeedback = false 
-}: DroppableItemProps) {
-  return (
-    <Draggable draggableId={item.id} index={index} isDragDisabled={isDragDisabled}>
-      {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          {...provided.dragHandleProps}
-          className={cn(
-            "group relative p-3 rounded-lg border-2 border-dashed transition-all duration-200 cursor-move",
-            "bg-white hover:bg-gray-50 hover:border-blue-300",
-            snapshot.isDragging && "shadow-lg border-blue-400 bg-blue-50 rotate-2 z-50",
-            isDragDisabled && "cursor-not-allowed opacity-75",
-            showFeedback && isCorrect && "border-green-500 bg-green-50",
-            showFeedback && isIncorrect && "border-red-500 bg-red-50",
-            "min-h-[60px] flex items-center justify-center text-center"
-          )}
-        >
-          {!isDragDisabled && (
-            <GripVertical className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 group-hover:text-gray-600" />
-          )}
-          
-          <div className="flex-1 px-6">
-            {item.type === 'text' && (
-              <span className="text-sm font-medium text-gray-700">
-                {item.content}
-              </span>
-            )}
-            
-            {item.type === 'image' && (
-              <div className="flex flex-col items-center gap-2">
-                <img 
-                  src={item.imageUrl} 
-                  alt={item.alt || 'Drag item'}
-                  className="max-w-16 max-h-16 object-contain rounded"
-                />
-                {item.caption && (
-                  <span className="text-xs text-gray-600">{item.caption}</span>
-                )}
-              </div>
-            )}
-          </div>
+  showFeedback = false,
+  disabled = false
+}: SortableItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging: isSortableDragging,
+  } = useSortable({
+    id: id,
+    disabled: disabled,
+  });
 
-          {showFeedback && (
-            <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
-              {isCorrect && <CheckCircle2 className="w-4 h-4 text-green-600" />}
-              {isIncorrect && <XCircle className="w-4 h-4 text-red-600" />}
-            </div>
-          )}
-        </div>
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isSortableDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={cn(
+        "group relative p-3 rounded-lg border-2 border-dashed transition-all duration-200 cursor-move",
+        "bg-white hover:bg-gray-50 hover:border-blue-300",
+        isSortableDragging && "shadow-lg border-blue-400 bg-blue-50 rotate-2 z-50",
+        disabled && "cursor-not-allowed opacity-75",
+        showFeedback && isCorrect && "border-green-500 bg-green-50",
+        showFeedback && isIncorrect && "border-red-500 bg-red-50",
+        "min-h-[60px] flex items-center justify-between"
       )}
-    </Draggable>
-  )
-}
-
-function DropZoneArea({ 
-  zone, 
-  items, 
-  isDragDisabled = false, 
-  showCorrectness = false, 
-  correctItems = [],
-  className 
-}: DroppableZoneProps) {
-  const isCorrectZone = showCorrectness && items.length > 0 && 
-    items.every(item => correctItems.includes(item.id))
-  const hasIncorrectItems = showCorrectness && items.some(item => !correctItems.includes(item.id))
-
-  return (
-    <div className={cn("space-y-3", className)}>
-      <div className="flex items-center gap-2">
-        <Target className="w-4 h-4 text-blue-600" />
-        <h4 className="text-sm font-medium text-gray-700">{zone.label}</h4>
-        {zone.description && (
-          <span className="text-xs text-gray-500">({zone.description})</span>
-        )}
-        {showCorrectness && (
-          <div className="ml-auto">
-            {isCorrectZone && items.length > 0 && (
-              <Badge className="bg-green-100 text-green-800">
-                <CheckCircle2 className="w-3 h-3 mr-1" />
-                Correct
-              </Badge>
-            )}
-            {hasIncorrectItems && (
-              <Badge className="bg-red-100 text-red-800">
-                <XCircle className="w-3 h-3 mr-1" />
-                Incorrect
-              </Badge>
-            )}
-          </div>
-        )}
+    >
+      {/* Drag Handle */}
+      <div className="flex items-center space-x-3">
+        <GripVertical className="w-4 h-4 text-gray-400 group-hover:text-gray-600" />
+        
+        {/* Item Content */}
+        <div className="flex items-center space-x-2">
+          {item.image && (
+            <img
+              src={item.image}
+              alt={item.text}
+              className="w-10 h-10 object-cover rounded"
+            />
+          )}
+          <span className="text-sm font-medium">{item.text}</span>
+        </div>
       </div>
 
-      <Droppable droppableId={zone.id}>
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className={cn(
-              "min-h-[120px] p-4 rounded-lg border-2 border-dashed transition-all duration-200",
-              "border-gray-300 bg-gray-50",
-              snapshot.isDraggingOver && "border-blue-400 bg-blue-50",
-              showCorrectness && isCorrectZone && "border-green-400 bg-green-50",
-              showCorrectness && hasIncorrectItems && "border-red-400 bg-red-50",
-              zone.maxItems && items.length >= zone.maxItems && "border-orange-400 bg-orange-50"
-            )}
-          >
-            {items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                <Target className="w-8 h-8 mb-2 opacity-50" />
-                <span className="text-sm">
-                  {zone.placeholder || `Drop items here (${zone.label})`}
-                </span>
-                {zone.maxItems && (
-                  <span className="text-xs mt-1">
-                    Max {zone.maxItems} item{zone.maxItems !== 1 ? 's' : ''}
-                  </span>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {items.map((item, index) => {
-                  const isCorrect = showCorrectness && correctItems.includes(item.id)
-                  const isIncorrect = showCorrectness && !correctItems.includes(item.id)
-                  
-                  return (
-                    <DraggableItem
-                      key={item.id}
-                      item={item}
-                      index={index}
-                      isDragDisabled={isDragDisabled}
-                      isCorrect={isCorrect}
-                      isIncorrect={isIncorrect}
-                      showFeedback={showCorrectness}
-                    />
-                  )
-                })}
-              </div>
-            )}
-            {provided.placeholder}
-          </div>
-        )}
-      </Droppable>
+      {/* Feedback Icon */}
+      {showFeedback && (
+        <div className="flex-shrink-0">
+          {isCorrect && <CheckCircle2 className="w-5 h-5 text-green-600" />}
+          {isIncorrect && <XCircle className="w-5 h-5 text-red-600" />}
+        </div>
+      )}
     </div>
   )
 }
 
-function ItemBank({ 
-  items, 
+// =================================================================
+// 🎯 DRAG OVERLAY ITEM
+// =================================================================
+
+function DragOverlayItem({ item }: { item: DragDropItem }) {
+  return (
+    <div
+      className={cn(
+        "relative p-3 rounded-lg border-2 border-dashed",
+        "bg-blue-50 border-blue-400 shadow-lg rotate-2",
+        "min-h-[60px] flex items-center justify-between cursor-move"
+      )}
+    >
+      <div className="flex items-center space-x-3">
+        <GripVertical className="w-4 h-4 text-blue-600" />
+        <div className="flex items-center space-x-2">
+          {item.image && (
+            <img
+              src={item.image}
+              alt={item.text}
+              className="w-10 h-10 object-cover rounded"
+            />
+          )}
+          <span className="text-sm font-medium">{item.text}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =================================================================
+// 🎯 DROP ZONE COMPONENT
+// =================================================================
+
+function DropZoneArea({
+  zone,
+  items,
   isDragDisabled = false,
-  showTitle = true
+  showCorrectness = false,
+  correctItems = [],
+  className
+}: DroppableZoneProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    isOver,
+  } = useSortable({
+    id: zone.id,
+    data: {
+      type: 'zone',
+      zone: zone,
+    },
+  });
+
+  const isCorrectZone = showCorrectness && items.every(item => 
+    correctItems.includes(item.id)
+  ) && items.length === correctItems.length
+
+  const hasErrors = showCorrectness && !isCorrectZone
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={cn(
+        "p-4 rounded-lg border-2 border-dashed transition-all duration-200",
+        "min-h-[120px]",
+        isOver && "border-blue-400 bg-blue-50",
+        !isOver && "border-gray-300 bg-gray-50",
+        showCorrectness && isCorrectZone && "border-green-400 bg-green-50",
+        showCorrectness && hasErrors && "border-red-400 bg-red-50",
+        className
+      )}
+    >
+      {/* Zone Header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center space-x-2">
+          <Target className="w-4 h-4 text-gray-600" />
+          <h4 className="text-sm font-medium text-gray-700">{zone.label}</h4>
+          {zone.capacity && (
+            <Badge variant="outline" className="text-xs">
+              {items.length} / {zone.capacity}
+            </Badge>
+          )}
+        </div>
+        {showCorrectness && (
+          <div>
+            {isCorrectZone && <CheckCircle2 className="w-5 h-5 text-green-600" />}
+            {hasErrors && <XCircle className="w-5 h-5 text-red-600" />}
+          </div>
+        )}
+      </div>
+
+      {/* Hint */}
+      {zone.hint && !showCorrectness && (
+        <p className="text-xs text-gray-500 mb-2">{zone.hint}</p>
+      )}
+
+      {/* Items in Zone */}
+      <SortableContext
+        items={items.map(item => item.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="space-y-2">
+          {items.length === 0 ? (
+            <div className="flex items-center justify-center h-16 text-gray-400">
+              <span className="text-sm">Drop items here</span>
+            </div>
+          ) : (
+            items.map((item) => {
+              const isCorrect = showCorrectness && correctItems.includes(item.id)
+              const isIncorrect = showCorrectness && !correctItems.includes(item.id)
+
+              return (
+                <SortableItem
+                  key={item.id}
+                  id={item.id}
+                  item={item}
+                  isCorrect={isCorrect}
+                  isIncorrect={isIncorrect}
+                  showFeedback={showCorrectness}
+                  disabled={isDragDisabled}
+                />
+              )
+            })
+          )}
+        </div>
+      </SortableContext>
+    </div>
+  )
+}
+
+// =================================================================
+// 🎯 ITEM BANK COMPONENT
+// =================================================================
+
+function ItemBank({
+  items,
+  isDragDisabled = false
 }: {
   items: DragDropItem[]
   isDragDisabled?: boolean
-  showTitle?: boolean
 }) {
-  if (items.length === 0) return null
-
   return (
-    <div className="space-y-3">
-      {showTitle && (
-        <div className="flex items-center gap-2">
-          <Move className="w-4 h-4 text-gray-600" />
-          <h4 className="text-sm font-medium text-gray-700">Available Items</h4>
-          <Badge variant="outline">{items.length}</Badge>
-        </div>
-      )}
+    <div className="p-4 rounded-lg border-2 border-gray-200 bg-white">
+      <div className="flex items-center space-x-2 mb-3">
+        <Move className="w-4 h-4 text-gray-600" />
+        <h4 className="text-sm font-medium text-gray-700">Available Items</h4>
+        <Badge variant="outline" className="text-xs">
+          {items.length} items
+        </Badge>
+      </div>
 
-      <Droppable droppableId="item-bank">
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className={cn(
-              "min-h-[100px] p-4 rounded-lg border-2 border-dashed",
-              "border-gray-300 bg-gray-50",
-              snapshot.isDraggingOver && "border-blue-400 bg-blue-50"
-            )}
-          >
-            {items.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-gray-500">
-                <span className="text-sm">All items have been placed</span>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                {items.map((item, index) => (
-                  <DraggableItem
-                    key={item.id}
-                    item={item}
-                    index={index}
-                    isDragDisabled={isDragDisabled}
-                  />
-                ))}
-              </div>
-            )}
-            {provided.placeholder}
-          </div>
-        )}
-      </Droppable>
+      <SortableContext
+        items={items.map(item => item.id)}
+        strategy={rectSortingStrategy}
+      >
+        <div className="space-y-2">
+          {items.length === 0 ? (
+            <div className="flex items-center justify-center h-16 text-gray-500">
+              <span className="text-sm">All items have been placed</span>
+            </div>
+          ) : (
+            items.map((item) => (
+              <SortableItem
+                key={item.id}
+                id={item.id}
+                item={item}
+                disabled={isDragDisabled}
+              />
+            ))
+          )}
+        </div>
+      </SortableContext>
     </div>
   )
 }
@@ -401,6 +457,30 @@ function QuizDragDrop({
   const [shuffledItems, setShuffledItems] = useState<DragDropItem[]>([])
   const [showHints, setShowHints] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
+  const [activeId, setActiveId] = useState<UniqueIdentifier | null>(null)
+
+  // DND-Kit Sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Drop animation config
+  const dropAnimationConfig: DropAnimation = {
+    sideEffects: defaultDropAnimationSideEffects({
+      styles: {
+        active: {
+          opacity: '0.5',
+        },
+      },
+    }),
+  };
 
   // Initialize shuffled items
   useEffect(() => {
@@ -424,304 +504,246 @@ function QuizDragDrop({
   }, [answer, onChange])
 
   // Event Handlers
-  const handleDragEnd = useCallback((result: DropResult) => {
-    const { destination, source, draggableId } = result
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveId(event.active.id);
+  };
 
-    if (!destination) return
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    setActiveId(null);
 
-    const sourceId = source.droppableId
-    const destId = destination.droppableId
+    if (!over) return;
 
-    // If dropped in the same position, do nothing
-    if (sourceId === destId && source.index === destination.index) {
-      return
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Find which zone the active item is currently in
+    let sourceZoneId: string | null = null;
+    for (const [zoneId, itemIds] of Object.entries(answer.placements)) {
+      if (itemIds.includes(activeId)) {
+        sourceZoneId = zoneId;
+        break;
+      }
+    }
+
+    // Check if dropping on a zone or an item
+    const targetZone = question.zones.find(z => z.id === overId);
+    let targetZoneId: string | null = null;
+
+    if (targetZone) {
+      // Dropped directly on a zone
+      targetZoneId = targetZone.id;
+    } else {
+      // Dropped on an item - find its zone
+      for (const [zoneId, itemIds] of Object.entries(answer.placements)) {
+        if (itemIds.includes(overId)) {
+          targetZoneId = zoneId;
+          break;
+        }
+      }
+    }
+
+    // If no target zone found, check if it's in the item bank
+    if (!targetZoneId && !sourceZoneId) {
+      // Item is being moved within the item bank
+      return;
     }
 
     setAnswer(prev => {
-      const newPlacements = { ...prev.placements }
+      const newPlacements = { ...prev.placements };
 
-      // Remove item from source
-      if (sourceId !== 'item-bank') {
-        newPlacements[sourceId] = (newPlacements[sourceId] || [])
-          .filter(id => id !== draggableId)
+      // Remove item from source zone if it exists
+      if (sourceZoneId) {
+        newPlacements[sourceZoneId] = (newPlacements[sourceZoneId] || [])
+          .filter(id => id !== activeId);
+        
+        // Clean up empty arrays
+        if (newPlacements[sourceZoneId].length === 0) {
+          delete newPlacements[sourceZoneId];
+        }
       }
 
-      // Add item to destination
-      if (destId !== 'item-bank') {
-        const destZone = question.dropZones.find(zone => zone.id === destId)
-        const currentItems = newPlacements[destId] || []
-
-        // Check if zone has max items limit
-        if (destZone?.maxItems && currentItems.length >= destZone.maxItems) {
-          toast.error(`${destZone.label} can only hold ${destZone.maxItems} item(s)`)
-          return prev
+      // Add item to target zone if it exists
+      if (targetZoneId) {
+        if (!newPlacements[targetZoneId]) {
+          newPlacements[targetZoneId] = [];
+        }
+        
+        // Check capacity
+        const targetZoneInfo = question.zones.find(z => z.id === targetZoneId);
+        if (targetZoneInfo?.capacity && newPlacements[targetZoneId].length >= targetZoneInfo.capacity) {
+          toast.error(`Zone "${targetZoneInfo.label}" is full (max ${targetZoneInfo.capacity} items)`);
+          return prev;
         }
 
-        // Add the item
-        newPlacements[destId] = [...currentItems, draggableId]
+        // Add item if not already present
+        if (!newPlacements[targetZoneId].includes(activeId)) {
+          newPlacements[targetZoneId].push(activeId);
+        }
       }
 
-      return { ...prev, placements: newPlacements }
+      return { ...prev, placements: newPlacements };
+    });
+  };
+
+  // Compute derived values
+  const itemsByZone = useMemo(() => {
+    const result: Record<string, DragDropItem[]> = {}
+    question.zones.forEach(zone => {
+      result[zone.id] = getItemsByZone(shuffledItems, answer.placements, zone.id)
+    })
+    return result
+  }, [shuffledItems, answer.placements, question.zones])
+
+  const unplacedItems = useMemo(() => {
+    return getUnplacedItems(shuffledItems, answer.placements)
+  }, [shuffledItems, answer.placements])
+
+  const validation = useMemo(() => {
+    if (!showCorrect || !question.correctAnswer) return null
+    return validateAnswer(answer, question.correctAnswer)
+  }, [answer, question.correctAnswer, showCorrect])
+
+  // Handle submission
+  const handleSubmit = useCallback(() => {
+    const errors: string[] = []
+
+    // Validate all items are placed
+    if (unplacedItems.length > 0) {
+      errors.push(`Please place all items. ${unplacedItems.length} items remaining.`)
+    }
+
+    // Validate required zones
+    question.zones.forEach(zone => {
+      if (zone.required && (!answer.placements[zone.id] || answer.placements[zone.id].length === 0)) {
+        errors.push(`Zone "${zone.label}" requires at least one item.`)
+      }
     })
 
-    setValidationErrors([])
-  }, [question.dropZones])
+    setValidationErrors(errors)
+
+    if (errors.length === 0) {
+      const result = question.correctAnswer 
+        ? validateAnswer(answer, question.correctAnswer)
+        : { score: 100, feedback: {} }
+
+      const quizAnswer: QuizAnswer = {
+        questionId: question.id,
+        questionType: 'DRAG_DROP',
+        answer: answer.placements,
+        isCorrect: result.score === 100,
+        score: result.score,
+        timeSpent: 0 // Would need to track this
+      }
+
+      onSubmit(quizAnswer)
+    }
+  }, [answer, question, unplacedItems, onSubmit])
 
   const handleReset = useCallback(() => {
     setAnswer({ placements: {} })
     setValidationErrors([])
-    toast.success('Items reset to bank')
   }, [])
 
-  const handleShuffle = useCallback(() => {
-    if (isSubmitted) return
-    
-    setShuffledItems(shuffleArray(question.items))
-    toast.success('Items shuffled')
-  }, [question.items, isSubmitted])
+  const handleToggleHints = useCallback(() => {
+    setShowHints(prev => !prev)
+  }, [])
 
-  const handleSubmit = useCallback(() => {
-    const errors: string[] = []
+  const activeItem = activeId 
+    ? shuffledItems.find(item => item.id === activeId)
+    : null;
 
-    // Validate required zones
-    question.dropZones.forEach(zone => {
-      const items = answer.placements[zone.id] || []
-      
-      if (zone.minItems && items.length < zone.minItems) {
-        errors.push(`${zone.label} requires at least ${zone.minItems} item(s)`)
-      }
-      
-      if (zone.maxItems && items.length > zone.maxItems) {
-        errors.push(`${zone.label} can hold maximum ${zone.maxItems} item(s)`)
-      }
-    })
-
-    // Check if all items are placed (if required)
-    if (question.requireAllItems) {
-      const unplacedItems = getUnplacedItems(shuffledItems, answer.placements)
-      if (unplacedItems.length > 0) {
-        errors.push('All items must be placed in drop zones')
-      }
-    }
-
-    if (errors.length > 0) {
-      setValidationErrors(errors)
-      toast.error('Please fix the validation errors before submitting')
-      return
-    }
-
-    const finalAnswer: QuizAnswer = {
-      questionId: question.id,
-      type: 'drag_drop',
-      answer: {
-        ...answer,
-        submittedAt: new Date().toISOString()
-      }
-    }
-
-    onSubmit(finalAnswer)
-    toast.success('Answer submitted successfully!')
-  }, [answer, question, shuffledItems, onSubmit])
-
-  // Computed values
-  const unplacedItems = useMemo(() => 
-    getUnplacedItems(shuffledItems, answer.placements), 
-    [shuffledItems, answer.placements]
-  )
-
-  const isCorrect = result?.isCorrect ?? false
-  const validation = useMemo(() => {
-    if (!question.correctAnswer) return null
-    return validateAnswer(answer, question.correctAnswer)
-  }, [answer, question.correctAnswer])
-
-  const completionPercentage = useMemo(() => {
-    const totalItems = shuffledItems.length
-    const placedItems = totalItems - unplacedItems.length
-    return totalItems > 0 ? (placedItems / totalItems) * 100 : 0
-  }, [shuffledItems.length, unplacedItems.length])
-
+  // Render
   return (
-    <Card className={cn("w-full", className)}>
-      <CardHeader className="pb-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <Move className="w-5 h-5 text-blue-600" />
-              <span>Question {questionIndex + 1}</span>
-              {!isSubmitted && (
-                <Badge variant="outline">
-                  {Math.round(completionPercentage)}% Complete
-                </Badge>
-              )}
-            </CardTitle>
-            
-            {timeLimit && (
-              <QuizProgress 
-                current={questionIndex + 1} 
-                total={totalQuestions}
-                timeLimit={timeLimit}
-                className="mt-2"
-              />
-            )}
-          </div>
-
-          {isSubmitted && (
-            <Badge className={isCorrect ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
-              {isCorrect ? (
-                <>
-                  <CheckCircle2 className="w-3 h-3 mr-1" />
-                  Correct
-                </>
-              ) : (
-                <>
-                  <XCircle className="w-3 h-3 mr-1" />
-                  Incorrect
-                </>
-              )}
-            </Badge>
-          )}
+    <Card className={cn("w-full max-w-6xl mx-auto", className)}>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-xl font-bold">{question.title}</CardTitle>
+          <QuizProgress current={questionIndex + 1} total={totalQuestions} />
         </div>
+        {question.description && (
+          <p className="text-sm text-gray-600 mt-2">{question.description}</p>
+        )}
       </CardHeader>
 
       <CardContent className="space-y-6">
-        {/* Question Text */}
-        <div className="prose prose-sm max-w-none">
-          <p className="text-gray-700 leading-relaxed">
-            {question.question}
-          </p>
-          
-          {question.instructions && (
-            <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-              <h4 className="text-sm font-medium text-blue-800 mb-1">Instructions:</h4>
-              <p className="text-sm text-blue-700">{question.instructions}</p>
-            </div>
-          )}
-        </div>
+        {/* Instructions */}
+        <Alert className="border-blue-200 bg-blue-50">
+          <AlertTriangle className="w-4 h-4 text-blue-600" />
+          <AlertDescription className="text-sm text-blue-700">
+            Drag items from the bank below and drop them into the appropriate zones.
+            {question.allowMultiple && " Items can be placed in multiple zones."}
+          </AlertDescription>
+        </Alert>
 
         {/* Validation Errors */}
         {validationErrors.length > 0 && (
           <Alert className="border-red-200 bg-red-50">
-            <AlertTriangle className="h-4 w-4 text-red-600" />
-            <AlertDescription className="text-red-800">
-              <ul className="list-disc list-inside space-y-1">
-                {validationErrors.map((error, index) => (
-                  <li key={index}>{error}</li>
-                ))}
-              </ul>
-            </AlertDescription>
+            <XCircle className="w-4 h-4 text-red-600" />
+            <div className="ml-2">
+              {validationErrors.map((error, index) => (
+                <AlertDescription key={index} className="text-sm text-red-700">
+                  {error}
+                </AlertDescription>
+              ))}
+            </div>
           </Alert>
         )}
 
-        {/* Controls */}
-        {!isSubmitted && (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowHints(!showHints)}
-              >
-                {showHints ? <EyeOff className="w-4 h-4 mr-1" /> : <Eye className="w-4 h-4 mr-1" />}
-                {showHints ? 'Hide' : 'Show'} Hints
-              </Button>
-              
-              {question.hints && showHints && (
-                <Badge variant="outline" className="text-blue-600">
-                  {question.hints.length} hint(s) available
-                </Badge>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleShuffle}
-                disabled={isSubmitted}
-              >
-                <Shuffle className="w-4 h-4 mr-1" />
-                Shuffle
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleReset}
-                disabled={isSubmitted}
-              >
-                <RotateCcw className="w-4 h-4 mr-1" />
-                Reset
-              </Button>
-            </div>
-          </div>
+        {/* Hints Toggle */}
+        {question.zones.some(z => z.hint) && !showCorrect && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleToggleHints}
+            className="gap-2"
+          >
+            {showHints ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            {showHints ? "Hide Hints" : "Show Hints"}
+          </Button>
         )}
 
-        {/* Hints */}
-        {showHints && question.hints && question.hints.length > 0 && (
-          <Alert className="border-blue-200 bg-blue-50">
-            <AlertTriangle className="h-4 w-4 text-blue-600" />
-            <AlertDescription className="text-blue-800">
-              <ul className="list-disc list-inside space-y-1">
-                {question.hints.map((hint, index) => (
-                  <li key={index}>{hint}</li>
-                ))}
-              </ul>
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* Progress Bar */}
-        {!isSubmitted && (
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>Progress</span>
-              <span>{shuffledItems.length - unplacedItems.length} / {shuffledItems.length} items placed</span>
-            </div>
-            <Progress value={completionPercentage} className="h-2" />
-          </div>
-        )}
-
-        {/* Drag & Drop Interface */}
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="space-y-6">
-            {/* Item Bank */}
-            <ItemBank 
-              items={unplacedItems} 
-              isDragDisabled={isSubmitted}
-            />
-
-            <Separator />
-
+        {/* Main Drag and Drop Area */}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="space-y-4">
             {/* Drop Zones */}
-            <div className="space-y-4">
-              <h4 className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                <Target className="w-4 h-4" />
-                Drop Zones
-              </h4>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {question.dropZones.map(zone => {
-                  const items = getItemsByZone(shuffledItems, answer.placements, zone.id)
-                  const correctItems = showCorrect && question.correctAnswer 
-                    ? question.correctAnswer[zone.id] || []
-                    : []
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {question.zones.map(zone => {
+                const items = itemsByZone[zone.id] || []
+                const correctItems = showCorrect && question.correctAnswer 
+                  ? question.correctAnswer[zone.id] || []
+                  : []
 
-                  return (
-                    <DropZoneArea
-                      key={zone.id}
-                      zone={zone}
-                      items={items}
-                      isDragDisabled={isSubmitted}
-                      showCorrectness={showCorrect}
-                      correctItems={correctItems}
-                    />
-                  )
-                })}
-              </div>
+                return (
+                  <DropZoneArea
+                    key={zone.id}
+                    zone={zone}
+                    items={items}
+                    isDragDisabled={isSubmitted}
+                    showCorrectness={showCorrect}
+                    correctItems={correctItems}
+                  />
+                )
+              })}
             </div>
+
+            {/* Item Bank */}
+            <Separator className="my-6" />
+            <ItemBank items={unplacedItems} isDragDisabled={isSubmitted} />
           </div>
-        </DragDropContext>
+
+          <DragOverlay dropAnimation={dropAnimationConfig}>
+            {activeId && activeItem ? (
+              <DragOverlayItem item={activeItem} />
+            ) : null}
+          </DragOverlay>
+        </DndContext>
 
         {/* Score Display */}
         {validation && showCorrect && (
@@ -744,9 +766,20 @@ function QuizDragDrop({
           </div>
         )}
 
-        {/* Submit Button */}
-        {!isSubmitted && (
-          <div className="flex justify-end pt-4">
+        {/* Actions */}
+        <div className="flex items-center justify-between pt-4">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleReset}
+            disabled={isSubmitted}
+            className="gap-2"
+          >
+            <RotateCcw className="w-4 h-4" />
+            Reset
+          </Button>
+
+          {!isSubmitted && (
             <Button 
               onClick={handleSubmit}
               disabled={validationErrors.length > 0}
@@ -754,8 +787,8 @@ function QuizDragDrop({
             >
               Submit Answer
             </Button>
-          </div>
-        )}
+          )}
+        </div>
       </CardContent>
     </Card>
   )
@@ -770,7 +803,7 @@ QuizDragDrop.displayName = 'QuizDragDrop'
 
 export default QuizDragDrop
 export { 
-  DraggableItem, 
+  SortableItem as DraggableItem, 
   DropZoneArea, 
   ItemBank,
   generateId,
@@ -780,6 +813,6 @@ export {
   getUnplacedItems,
   type QuizDragDropProps,
   type DragDropAnswer,
-  type DroppableItemProps,
+  type SortableItemProps as DroppableItemProps,
   type DroppableZoneProps
 }

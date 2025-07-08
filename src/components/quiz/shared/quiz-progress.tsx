@@ -10,28 +10,44 @@
  * =================================================================
  */
 
-'use client';
+// =================================================================
+// 🎯 IMPORTS - ARCTIC SIBERIA STANDARD 7 CATEGORIES
+// =================================================================
 
+// 1. Client Directive & Framework
+'use client';
 import React from 'react';
 
+// 2. UI Components (Barrel Imports)
 // ✅ FIXED: Menggunakan barrel imports dari index.ts
 import { 
-  Card, CardContent,
-  Progress,
-  Badge
+  Badge,
+  Card, 
+  CardContent,
+  Progress
 } from '@/components/ui';
 
+// 3. Feature Components
+// (none for this component)
+
+// 4. Icons (lucide-react grouped together)
 // ✅ FIXED: Icons grouped together
 import { 
+  AlertCircle,
   CheckCircle, 
   Circle, 
   Clock, 
-  AlertCircle,
   TrendingUp 
 } from 'lucide-react';
 
-// ✅ FIXED: Local utilities
+// 5. External Libraries
+// (none for this component)
+
+// 6. Local Utilities
 import { cn } from '@/lib/utils';
+
+// 7. Constants & Configs
+// (none for this component)
 
 // =================================================================
 // 🎯 INTERFACES
@@ -361,9 +377,19 @@ export function useQuizProgress(totalQuestions: number, currentQuestion: number)
   };
 }
 
+// Set display name for debugging
+QuizProgress.displayName = 'QuizProgress';
+
 // =================================================================
-// 🎯 EXPORTS - FOLLOW ARCTIC SIBERIA STANDARD
+// 🎯 EXPORTS - ARCTIC SIBERIA STANDARD ✅ FIXED
 // =================================================================
 
+// ✅ FIXED: Main component as default export (tanpa semicolon!)
 export default QuizProgress
-export { useQuizProgress, type QuizProgressProps, type QuestionStatus }
+
+// ✅ FIXED: Named exports dengan proper grouping
+export { 
+  useQuizProgress, 
+  type QuizProgressProps, 
+  type QuestionStatus 
+}
