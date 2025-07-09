@@ -21,7 +21,7 @@ import {
   useState 
 } from 'react';
 
-// ✅ FIXED: UI Components dari barrel exports
+// ✅ FIXED: UI Components menggunakan barrel imports dari index.ts
 import {
   Button,
   Card,
@@ -67,10 +67,9 @@ import {
   TooltipTrigger
 } from '@/components/ui';
 
-// ✅ FIXED: Icons grouped together
+// ✅ FIXED: Icons - grouped together dengan consistent naming
 import {
   ChevronDown,
-  DragHandleDots2Icon,
   Eye,
   GripVertical,
   MoreHorizontal,
@@ -81,27 +80,31 @@ import {
   Upload
 } from 'lucide-react';
 
-// ✅ FIXED: External libraries
+// ✅ FIXED: External libraries - grouped together
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-// ✅ FIXED: Local utilities - session hooks dan types
+// ✅ FIXED: Local utilities & types
+import { cn } from '@/lib/utils';
 import useSessionCrud from './hooks/use-session-crud';
 import useSessionReorder from './hooks/use-session-reorder';
 import type {
   ContentAccessLevel,
   ContentType,
-  CONTENT_TYPE_DESCRIPTIONS,
-  CONTENT_TYPE_ICONS,
-  CONTENT_TYPE_LABELS,
   CreateSessionFormData,
   Session,
   SessionBuilderConfig,
   SessionFilters,
   SessionMode,
   SessionSortOption
+} from './types';
+
+// ✅ FIXED: Constants & configs - separated from types
+import {
+  CONTENT_TYPE_DESCRIPTIONS,
+  CONTENT_TYPE_ICONS,
+  CONTENT_TYPE_LABELS
 } from './types';
 
 // =================================================================

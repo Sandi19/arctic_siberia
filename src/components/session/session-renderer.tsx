@@ -21,7 +21,7 @@ import {
   useState 
 } from 'react';
 
-// ✅ FIXED: UI Components dari barrel exports
+// ✅ FIXED: UI Components menggunakan barrel imports dari index.ts
 import {
   Badge,
   Button,
@@ -49,7 +49,7 @@ import {
   TooltipTrigger
 } from '@/components/ui';
 
-// ✅ FIXED: Icons grouped together
+// ✅ FIXED: Icons - grouped together
 import {
   BookOpen,
   Check,
@@ -70,21 +70,25 @@ import {
   Volume2
 } from 'lucide-react';
 
-// ✅ FIXED: External libraries
-import { cn } from '@/lib/utils';
+// ✅ FIXED: External libraries - grouped together
 import { toast } from 'sonner';
 
-// ✅ FIXED: Local utilities - session types
+// ✅ FIXED: Local utilities & types
+import { cn } from '@/lib/utils';
 import type {
   ContentAccessLevel,
   ContentType,
-  CONTENT_TYPE_ICONS,
-  CONTENT_TYPE_LABELS,
   Session,
   SessionContent,
   SessionProgress,
   SessionRendererConfig,
   SessionRendererState
+} from './types';
+
+// ✅ FIXED: Constants & configs - separated from types
+import {
+  CONTENT_TYPE_ICONS,
+  CONTENT_TYPE_LABELS
 } from './types';
 
 // =================================================================
