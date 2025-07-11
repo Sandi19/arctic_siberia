@@ -38,3 +38,27 @@ export { default as AssignmentContentBuilder } from './content-handlers/assignme
 // =================================================================
 export { default as useSessionCrud } from './hooks/use-session-crud';
 export { default as useSessionReorder } from './hooks/use-session-reorder';
+
+// =================================================================
+// Session builder
+// Tambahkan di src/components/session/index.ts
+
+// =================================================================
+// 🎯 MAIN COMPONENTS - Default exports with 'as' alias  
+// =================================================================
+export { default as SessionBuilder } from './session-builder';
+export { default as SessionRenderer } from './session-renderer';
+
+// Tambahkan di src/components/session/index.ts setelah main components
+
+// =================================================================
+// 🎯 SESSION MANAGEMENT COMPONENTS - Default exports with 'as' alias
+// =================================================================
+export { default as SessionCard } from './components/session-management/session-card';
+export { default as SessionForm } from './components/session-management/session-form';
+export { default as SessionList } from './components/session-management/session-list';
+
+// =================================================================
+// 🎯 SESSION STATISTICS - Default exports with 'as' alias
+// =================================================================
+export { default as SessionStats } from './components/session-statistics/session-stats';

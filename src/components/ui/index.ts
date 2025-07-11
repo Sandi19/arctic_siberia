@@ -9,6 +9,7 @@ export { default as Calendar } from './calendar'
 export { default as Card } from './card'
 export { default as Checkbox } from './checkbox'
 export { default as Dialog } from './dialog'
+export { default as DropdownMenu } from './dropdown-menu'
 export { default as Form } from './form'
 export { default as Input } from './input'
 export { default as Label } from './label'
@@ -58,6 +59,25 @@ export {
   ProgressWithValue, 
   CircularProgress 
 } from './progress'
+
+// ✅ DROPDOWN MENU COMPONENTS - Named exports untuk sub-components
+export {
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
+  DropdownMenuRadioItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuGroup,
+  DropdownMenuPortal,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuArrow
+} from './dropdown-menu'
 
 // ✅ FORM COMPONENTS - Named exports untuk Form sub-components
 export {
